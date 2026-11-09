@@ -1,0 +1,6 @@
+ae2cf.wireless.unavailable=Wireless terminal unavailable. Check its binding, power, range, and extract permission.
+ae2cf.wireless.inventory_full=Your inventory has no room for this item.
+ae2cf.wireless.extract_failed=Could not extract the item. Check wireless power and network status.
+ae2cf.wireless.no_pattern=This item has no extractable stock or crafting pattern in the AE network.
+ae2cf.wireless.no_craft_permission=You do not have crafting permission on this AE network.
+ae2cf.wireless.gui_failed=Could not open AE2 crafting. Check that the terminal is still in its slot.

@@ -1,0 +1,22 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "com.ae2conveniencefeatures.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "refmap": "mixins.ae2conveniencefeatures.refmap.json",
+  "mixins": [
+    "PlatformBaublesMixin"
+  ],
+  "client": [
+    "nei.ItemsGridInventoryMixin",
+    "nei.HistoryGridAccessor",
+    "ae.MonitorSearchAccessor",
+    "ae.InterfaceSearchAccessor",
+    "ae.DiagnosticSearchAccessor",
+    "ae.LevelSearchAccessor"
+  ],
+  "server": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
