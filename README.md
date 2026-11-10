@@ -45,5 +45,5 @@ bash build.sh spotlessApply build
 
 - **样板上传**：[GaLicn/AE2-Auto-Pattern-Upload](https://github.com/GaLicn/AE2-Auto-Pattern-Upload)
 - **EAEP / ExtendedAE Plus**：[GaLicn/ExtendedAE_Plus](https://github.com/GaLicn/ExtendedAE_Plus)
-
+曾基于'样板上传'开发，后独立出全部额外添加功能
 本项目为独立实现，不依赖上述两个模组。许可证与来源说明见 [LICENSE](LICENSE) 和 [NOTICE](NOTICE)。
