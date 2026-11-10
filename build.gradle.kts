@@ -45,3 +45,15 @@ tasks.register<JavaExec>("handInventoryRegression") {
     classpath = sourceSets.test.get().runtimeClasspath
     mainClass.set("com.ae2conveniencefeatures.wireless.HandInventoryTest")
 }
+
+// GTNH's convention also sets the reobfuscated filename after evaluation; apply our separator last.
+afterEvaluate {
+    listOf("jar", "reobfJar", "sourcesJar").forEach { taskName ->
+        tasks.named<org.gradle.api.tasks.bundling.AbstractArchiveTask>(taskName) {
+            archiveFileName.set(provider {
+                listOf(archiveBaseName.get(), archiveAppendix.orNull, archiveVersion.orNull, archiveClassifier.orNull)
+                    .filterNotNull().filter { it.isNotEmpty() }.joinToString(" ") + "." + archiveExtension.get()
+            })
+        }
+    }
+}

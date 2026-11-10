@@ -9,6 +9,7 @@ from zipfile import ZipFile
 
 artifact = Path(sys.argv[1])
 prefix = "com/ae2conveniencefeatures/"
+assert artifact.name == "AE2 Convenience Features 0.5.jar", "artifact filename must use spaces"
 with ZipFile(artifact) as archive:
     names = set(archive.namelist())
     assert archive.testzip() is None, "corrupt ZIP entry"
@@ -21,11 +22,17 @@ with ZipFile(artifact) as archive:
     assert config["mixins"] == ["PlatformBaublesMixin"]
     assert set(config["client"]) == {"nei.ItemsGridInventoryMixin", "nei.HistoryGridAccessor",
         "ae.MonitorSearchAccessor", "ae.InterfaceSearchAccessor", "ae.DiagnosticSearchAccessor",
-        "ae.LevelSearchAccessor"}
+        "ae.LevelSearchAccessor", "nei.ContainerMiddleClickMixin", "nei.RecipeMiddleClickMixin"}
     for side in ("mixins", "client", "server"):
         for name in config[side]:
             assert config["package"].replace(".", "/") + "/" + name.replace(".", "/") + ".class" in names, name
     assert config["refmap"] in names
+    refmap = json.loads(archive.read(config["refmap"]))["mappings"]
+    recipe_mapping = refmap[prefix + "mixin/nei/RecipeMiddleClickMixin"]
+    assert recipe_mapping["mouseClicked(III)V"].endswith("func_73864_a(III)V")
+    assert recipe_mapping["mouseMovedOrUp(III)V"].endswith("func_146286_b(III)V")
+    assert recipe_mapping["mouseClickMove(IIIJ)V"].endswith("func_146273_a(IIIJ)V")
+    assert recipe_mapping["initGui()V"].endswith("func_73866_w_()V")
     manifest = archive.read("META-INF/MANIFEST.MF").decode()
     assert "MixinConfigs: mixins.ae2conveniencefeatures.json" in manifest
     classes = sorted(name for name in names if name.endswith(".class"))

@@ -5,7 +5,8 @@
 ## 功能
 
 - 携带有效的 AE2 无线终端，在 NEI 右侧、历史栏、左侧书签以及配方页按 Shift+右键取 1，Shift+左键取一组。无可提取库存但有样板时进入 AE2 原生数量/确认下单流程。
-- 右侧和历史栏的库存数量为右下白字；左侧书签为左下绿字，均贴格子底部。刷新直接替换快照，不周期隐藏数字；连续 10 秒收不到有效数据后停止显示旧数字。
+- 零库存不显示数字；有样板且具备合成权限时，物品左上角显示白色 `+`。右侧和历史栏的库存数量为右下白字；左侧书签为左下绿字，均贴格子底部。刷新直接替换快照，不周期隐藏数字；连续 10 秒收不到有效数据后停止显示旧数字。
+- NEI 中键：右侧、历史、左侧书签/标签和配方页均支持，无需 Shift。有样板时直接进入原生下单页，即使已有库存也可以下单，不提取库存。
 - 世界中键：优先选中背包已有的同物品（精确 meta/NBT），否则从 AE 提取至快捷栏并选中；没有库存但有样板则下单。不会覆盖或删除原手持物品，背包满时拒绝提取。
 - F 键将悬停物品名写入 AE2 终端、接口终端、诊断终端的搜索框；兼容 GTNH 自带 AE2FC 的等级终端及无线等级终端。文本框已有焦点时不抢键。
 - 主背包无线终端优先，饰品终端通过可选隔离桥支持。服务器检查注册 handler、绑定、安全站、电量、范围、EXTRACT，合成另查 CRAFT。
@@ -15,13 +16,16 @@
 ## 安装
 
 1. 客户端与服务端从 mods 移除旧 AE2-Auto-Pattern-Upload，备份原 jar。
-2. 双端加入 `AE2-Convenience-Features-0.5.jar`。不要安装 `-dev.jar` 或 `-sources.jar`。
+2. 双端加入 `AE2 Convenience Features 0.5.jar`。不要安装开发包 `dev.jar` 或源码包 `sources.jar`。
 3. 原 GTNH 2.9.0 自带 AE2、GTNH NEI、CodeChickenLib、UniMixins 已满足必需运行条件。Baubles 为可选，AE2FC 搜索兼容没有硬类型依赖。
-4. 新配置生成在 `config/ae2conveniencefeatures.cfg`。`neiActions`、`inventoryOverlay`、`worldPickBlock` 可单独关闭；`searchKeyCode=33` 表示 F，设 0 关闭。
+4. 新配置生成在 `config/ae2conveniencefeatures.cfg`。`neiActions`、`neiMiddleCraft`、`inventoryOverlay`、`worldPickBlock` 可单独关闭；`searchKeyCode=33` 表示 F，设 0 关闭。
 
 不需要安装任何额外第三方模组。不要同时保留新旧两个功能模组，否则旧模组仍会注册自己的网络与按键处理。
 
 ## 输入共存
+
+NEI 中键在当前 GTNH NEI 的 `GuiContainerManager.handleMouseHotkey` 入口接管，早于配方页和各模组的点击通知/下单热键。旧版 NEI 则由管理器和配方页的 HEAD 注入接管。只消费携带终端、悬停 NEI 物品的中键及其释放/拖拽；已缓存确认无样板、无终端、普通背包槽位或关闭功能时放行。冷缓存由服务端确认一次，不重放同次输入给其他模组，也不修改其他模组配置。服务端另有频率限制，并重新验证样板和权限。
+
 
 在世界、生存模式、目标是可拾取形式方块、携带已注册且绑定的无线终端时，最高优先级 Forge MouseEvent 只消费本次中键按下，防止它继续触发 AE2 自带 PacketPickBlock 或已核实的同类 middleClickMouse Mixin。已被其他处理器取消的事件会立即放行。
 
@@ -35,7 +39,7 @@ JDK 17 运行 Gradle，Java 8 字节码输出：
 
 ```sh
 bash build.sh spotlessApply build
-python3 scripts/audit-artifact.py build/libs/AE2-Convenience-Features-0.5.jar
+python3 scripts/audit-artifact.py "build/libs/AE2 Convenience Features 0.5.jar"
 ```
 
 `build` 自动运行实际 Minecraft 物品/NBT、Forge/Netty 编解码、缓存及手持物品守恒回归。具体运行结果、接口核实和 14 项自检随交付报告提供。构建通过不能代替 GTNH 客户端交互实测。

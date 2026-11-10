@@ -13,7 +13,9 @@
     "ae.MonitorSearchAccessor",
     "ae.InterfaceSearchAccessor",
     "ae.DiagnosticSearchAccessor",
-    "ae.LevelSearchAccessor"
+    "ae.LevelSearchAccessor",
+    "nei.ContainerMiddleClickMixin",
+    "nei.RecipeMiddleClickMixin"
   ],
   "server": [],
   "injectors": {

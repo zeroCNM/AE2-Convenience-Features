@@ -15,6 +15,7 @@ public final class WirelessActionPacket implements IMessage {
 
     public static final int TAKE_ONE = 0;
     public static final int TAKE_STACK = 1;
+    public static final int CRAFT_ONLY = 2;
     public int action;
     public int dimension;
     public ItemStack item;
@@ -31,7 +32,7 @@ public final class WirelessActionPacket implements IMessage {
     @Override
     public void fromBytes(ByteBuf buf) {
         action = buf.readUnsignedByte();
-        if (action > TAKE_STACK) throw new IllegalArgumentException("Invalid wireless action");
+        if (action > CRAFT_ONLY) throw new IllegalArgumentException("Invalid wireless action");
         dimension = buf.readInt();
         item = FullStackCodec.read(buf);
         item.stackSize = 1;

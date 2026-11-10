@@ -139,6 +139,13 @@ public final class PacketCodecTest {
             take.action == WirelessActionPacket.TAKE_STACK && take.item.stackSize == 1
                 && new StackKey(take.item).equals(new StackKey(stack)),
             "take action preserves identity, not client quantity");
+        WirelessActionPacket craft = roundTrip(
+            new WirelessActionPacket(WirelessActionPacket.CRAFT_ONLY, -1, stack),
+            new WirelessActionPacket());
+        check(
+            craft.action == WirelessActionPacket.CRAFT_ONLY && craft.item.stackSize == 1
+                && new StackKey(craft.item).equals(new StackKey(stack)),
+            "explicit crafting preserves full identity independently of item quantity");
         WorldPickRequestPacket world = new WorldPickRequestPacket();
         world.requestId = 42;
         world.dimension = 2;
@@ -192,7 +199,7 @@ public final class PacketCodecTest {
         rejects(
             new WirelessActionPacket(),
             Unpooled.buffer()
-                .writeByte(2),
+                .writeByte(3),
             "unknown action rejected");
         rejects(new WorldPickRequestPacket(), worldHeader(1, 0, 6, 0), "invalid side rejected");
         rejects(new WorldPickRequestPacket(), worldHeader(1, 0, 0, 9), "invalid selected slot rejected");

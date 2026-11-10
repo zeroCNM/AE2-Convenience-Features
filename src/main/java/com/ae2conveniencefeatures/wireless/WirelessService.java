@@ -85,6 +85,8 @@ public final class WirelessService {
         ICraftingGrid crafting = monitor == null ? null
             : access.object.getGrid()
                 .getCache(ICraftingGrid.class);
+        boolean canCraft = crafting != null
+            && TerminalAccess.permits(player, access.object.getGrid(), SecurityPermissions.CRAFT);
         if (monitor != null) reply.gridId = gridId(access.object.getGrid());
         observe(player, monitor, reply.gridId);
         Observer observer = OBSERVERS.get(player);
@@ -107,17 +109,17 @@ public final class WirelessService {
             reply.items.add(item);
             reply.counts.add(count);
             reply.craftable.add(
-                count == 0 && crafting != null
-                    && !crafting.getCraftingFor(key, null, -1, player.worldObj)
-                        .isEmpty());
+                canCraft && !crafting.getCraftingFor(key, null, -1, player.worldObj)
+                    .isEmpty());
         }
         if (observer != null && observer.revision.get() == reply.revision) observer.dirty = false;
         ModNetwork.CHANNEL.sendTo(reply, player);
     }
 
     public static void act(EntityPlayerMP player, WirelessActionPacket request) {
-        if (!Config.neiActions || player.dimension != request.dimension || throttle(ACTIONS, player, 100_000_000L))
-            return;
+        boolean craftOnly = request.action == WirelessActionPacket.CRAFT_ONLY;
+        if ((craftOnly ? !Config.neiMiddleCraft : !Config.neiActions) || player.dimension != request.dimension
+            || throttle(ACTIONS, player, 100_000_000L)) return;
         TerminalAccess access = TerminalAccess.resolveServer(player);
         if (access == null || !access.accessible) {
             tell(player, "wireless.unavailable");
@@ -130,6 +132,12 @@ public final class WirelessService {
         if (item == null || item.getItem() == null) return;
         IAEItemStack key = AEItemStack.create(item);
         key.setStackSize(1);
+        // An explicit NEI middle-click always crafts, including stocked items. This branch
+        // exits before even simulating extraction; the server rechecks the actual pattern and CRAFT permission.
+        if (craftOnly) {
+            openCrafting(player, access, key, true);
+            return;
+        }
         PlayerSource source = new PlayerSource(player, access.object);
         IAEItemStack available = monitor.extractItems(key.copy(), Actionable.SIMULATE, source);
 

@@ -8,6 +8,7 @@ public final class Config {
 
     public static boolean neiActions = true;
     public static boolean inventoryOverlay = true;
+    public static boolean neiMiddleCraft = true;
     public static boolean worldPickBlock = true;
     public static int searchKeyCode = 33;
 
@@ -17,6 +18,11 @@ public final class Config {
         Configuration config = new Configuration(file);
         neiActions = config.getBoolean("neiActions", "features", true, "Shift-click NEI items to retrieve or craft.");
         inventoryOverlay = config.getBoolean("inventoryOverlay", "features", true, "Show AE stock on NEI panels.");
+        neiMiddleCraft = config.getBoolean(
+            "neiMiddleCraft",
+            "features",
+            true,
+            "Middle-click NEI items to open crafting even when stocked.");
         worldPickBlock = config
             .getBoolean("worldPickBlock", "features", true, "Pick blocks from AE stock or open crafting.");
         searchKeyCode = config
