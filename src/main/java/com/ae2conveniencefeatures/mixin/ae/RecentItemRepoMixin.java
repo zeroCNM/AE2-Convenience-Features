@@ -16,7 +16,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import com.ae2conveniencefeatures.client.crafting.RecentRepo;
 import com.ae2conveniencefeatures.client.crafting.RecentTerminalClient;
 import com.ae2conveniencefeatures.client.crafting.RecentTerminalLayout;
-import com.ae2conveniencefeatures.crafting.RecentCraftHistory;
+import com.ae2conveniencefeatures.crafting.RecentCraftView;
 
 import appeng.api.storage.data.IAEStack;
 import appeng.api.storage.data.IItemList;
@@ -44,14 +44,8 @@ public abstract class RecentItemRepoMixin implements RecentRepo {
     @Shadow
     private int rowSize;
 
-    @Shadow
-    public abstract void updateView();
-
     @Unique
-    private List<IAEStack<?>> ae2cf$normalView;
-
-    @Unique
-    private int ae2cf$prefixSlots;
+    private final RecentCraftView<IAEStack<?>> ae2cf$recentView = new RecentCraftView<>();
 
     @Inject(method = "<init>", at = @At("RETURN"))
     private void ae2cf$register(IScrollSource scroll, ISortSource owner, CallbackInfo callback) {
@@ -61,35 +55,32 @@ public abstract class RecentItemRepoMixin implements RecentRepo {
     @Inject(method = "updateView()V", at = @At("HEAD"))
     private void ae2cf$restoreView(CallbackInfo callback) {
         // Native Shift-pause iterates its old view. Never let our null padding enter that path.
-        if (ae2cf$normalView != null) {
-            view.clear();
-            view.addAll(ae2cf$normalView);
-            ae2cf$normalView = null;
-        }
-        ae2cf$prefixSlots = 0;
+        ae2cf$recentView.restore(view);
     }
 
     @Inject(method = "updateView()V", at = @At("TAIL"))
     private void ae2cf$prepend(CallbackInfo callback) {
-        List<IAEStack<?>> recent = new ArrayList<>();
-        for (ItemStack item : RecentTerminalClient.items(sortSrc)) {
-            IAEStack<?> stored = list.findPrecise(AEItemStack.create(item));
-            if (stored != null && (stored.getStackSize() > 0 || stored.isCraftable())) recent.add(stored);
-        }
-        if (!recent.isEmpty()) {
-            ae2cf$normalView = new ArrayList<>(view);
-            ae2cf$prefixSlots = RecentCraftHistory.prepend(view, recent, rowSize);
-        }
-        if (sortSrc instanceof RecentTerminalLayout layout) layout.ae2cf$refreshLayout(false);
+        ae2cf$refresh();
     }
 
     @Override
     public void ae2cf$refresh() {
-        updateView();
+        // Completion/expiry/binding changes only decorate the already filtered native view.
+        // Native inventory/search/sort updates still run unchanged through updateView's hooks.
+        ae2cf$recentView.restore(view);
+        List<ItemStack> items = RecentTerminalClient.items(sortSrc);
+        if (items.isEmpty()) return;
+        List<IAEStack<?>> recent = new ArrayList<>();
+        for (ItemStack item : items) {
+            IAEStack<?> stored = list.findPrecise(AEItemStack.create(item));
+            if (stored != null && (stored.getStackSize() > 0 || stored.isCraftable())) recent.add(stored);
+        }
+        ae2cf$recentView.apply(view, recent, rowSize);
+        if (sortSrc instanceof RecentTerminalLayout layout) layout.ae2cf$refreshLayout(false);
     }
 
     @Override
     public int ae2cf$prefixSlots() {
-        return ae2cf$prefixSlots;
+        return ae2cf$recentView.prefixSlots();
     }
 }

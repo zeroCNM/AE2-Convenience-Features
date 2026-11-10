@@ -1,4 +1,4 @@
-# AE2 Convenience Features 0.8
+# AE2 Convenience Features 0.9
 
 独立的 Minecraft 1.7.10 / GTNH 2.9.0 模组，客户端和服务端均安装。
 
@@ -18,7 +18,7 @@
 ## 安装
 
 1. 客户端与服务端从 mods 移除旧 AE2-Auto-Pattern-Upload，备份原 jar。
-2. 双端加入 `AE2 Convenience Features 0.8.jar`，删除旧版功能包。不要安装开发包 `dev.jar` 或源码包 `sources.jar`。
+2. 双端加入 `AE2 Convenience Features 0.9.jar`，删除旧版功能包。不要安装开发包 `dev.jar` 或源码包 `sources.jar`。
 3. 原 GTNH 2.9.0 自带 AE2、GTNH NEI、CodeChickenLib、UniMixins 已满足必需运行条件。Baubles 为可选，AE2FC 搜索兼容没有硬类型依赖。
 4. 新配置生成在 `config/ae2conveniencefeatures.cfg`。`neiActions`、`neiMiddleCraft`、`inventoryOverlay`、`worldPickBlock`、`completedCraftRows` 可单独关闭；`searchKeyCode=33` 表示 F，设 0 关闭。
 
@@ -41,12 +41,12 @@ JDK 17 运行 Gradle，Java 8 字节码输出：
 
 ```sh
 bash build.sh spotlessApply build
-python3 scripts/audit-artifact.py "build/libs/AE2 Convenience Features 0.8.jar"
+python3 scripts/audit-artifact.py "build/libs/AE2 Convenience Features 0.9.jar"
 ```
 
 `build` 自动运行实际 Minecraft 物品/NBT、Forge/Netty 编解码、缓存及手持物品守恒回归。具体运行结果、接口核实和 14 项自检随交付报告提供。构建通过不能代替 GTNH 客户端交互实测。
 
-每次发布功能更新都递增一次版本号，统一维护根目录 `VERSION`；构建和产物审计均读取该文件。同一次更新重复构建不增加版本。本次为 0.8，下一次为 0.9，历史交付保留。
+每次发布功能更新都递增一次版本号，统一维护根目录 `VERSION`；构建和产物审计均读取该文件。同一次更新重复构建不增加版本。本次为 0.9，下一次为 0.10，历史交付保留。
 
 ## 完成物品临时栏
 
@@ -55,3 +55,11 @@ python3 scripts/audit-artifact.py "build/libs/AE2 Convenience Features 0.8.jar"
 临时栏使用终端原生库存引用，数量随原生同步更新；显示排序独立于普通搜索，普通列表中同物品被移到临时行。已有原生固定栏仍保留，在可见的临时行下方显示。翻页滚动后，两部分的点击位置跟随实际显示。临时行沿用终端的滚动区域，记录较多时可滚动查看。最多保留最近 256 种完成物品，满后淘汰最旧的。
 
 在 AE 数量、确认、CPU 状态子页面之间切换视为本次终端访问的延续；主动关闭、切到其他普通界面或不同 AE 网络会清除已显示记录。待显示的完成记录按网络隔离，显示后从服务器队列消费，不会关闭重开后再次出现。服务器重启会清除尚未显示的临时记录；已持久化的原生订单仍由 AE 继续制作。
+
+## 0.9 保守优化
+
+完成栏本地变化仅在已由 AE 筛选和排序的 view 上调整显示，不再主动调用原生 updateView；无完成物品的首次绑定不触发整表刷新。原生库存、搜索、排序、Shift 暂停更新仍按 AE 自身流程运行，进入原生更新前恢复完整原视图。快照容器和最近完成顺序可复用；无临时行时跳过坐标扫描，位置未变时不写坐标，但保留逐帧观察以兼容其他模组改动位置。
+
+NEI 相同 ItemStack 的标识使用有上限的弱引用缓存，每次命中仍比较物品、meta 和完整 NBT；嵌套 NBT 原地修改也立即失效。世界中没有 NEI 界面和待处理取物请求时，不再逐 tick 扫描无线终端。服务端无新增完成记录、终端和网络未变时，不分配空完成通知包。没有调整安全校验、输入优先级、同步频率、网络包编号或 NEI 500 ms 有效期。
+
+用户复测后卡顿未稳定复现，本轮没有证明其根因。171 项回归与静态字节码审计用于检查行为和重复工作；未采集客户端帧耗时，不把这些结果换算成 FPS 提升。

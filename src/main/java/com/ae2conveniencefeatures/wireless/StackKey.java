@@ -22,6 +22,13 @@ public final class StackKey {
         hash = Objects.hash(item, damage, tag);
     }
 
+    /** Compare against mutable input without allocating/copying it or changing this immutable key. */
+    public boolean matches(ItemStack stack) {
+        return stack != null && item == stack.getItem()
+            && damage == stack.getItemDamage()
+            && Objects.equals(tag, stack.hasTagCompound() ? stack.getTagCompound() : null);
+    }
+
     @Override
     public boolean equals(Object other) {
         if (!(other instanceof StackKey)) return false;

@@ -29,6 +29,7 @@ import com.ae2conveniencefeatures.network.wireless.WorldPickRequestPacket;
 import com.ae2conveniencefeatures.network.wireless.WorldPickResultPacket;
 import com.ae2conveniencefeatures.wireless.InventoryViewCache;
 import com.ae2conveniencefeatures.wireless.StackKey;
+import com.ae2conveniencefeatures.wireless.StackKeyCache;
 import com.ae2conveniencefeatures.wireless.TerminalAccess;
 
 import codechicken.lib.gui.GuiDraw;
@@ -52,6 +53,7 @@ import cpw.mods.fml.common.gameevent.TickEvent;
 public final class WirelessClient {
 
     private static final InventoryViewCache<StackKey> CACHE = new InventoryViewCache<StackKey>();
+    private static final StackKeyCache KEYS = new StackKeyCache();
     private static boolean hasSnapshot;
     private static boolean validTerminal;
     private static boolean accessible;
@@ -85,6 +87,7 @@ public final class WirelessClient {
     @SubscribeEvent
     public void opened(GuiOpenEvent event) {
         pendingPick = null;
+        KEYS.clear();
         CACHE.context(null, Collections.<StackKey>emptySet());
         CACHE.invalidate(0);
         hasSnapshot = false;
@@ -94,6 +97,15 @@ public final class WirelessClient {
     public void tick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         Minecraft minecraft = Minecraft.getMinecraft();
+        boolean neiActive = (Config.inventoryOverlay || Config.neiMiddleCraft)
+            && minecraft.currentScreen instanceof GuiContainer
+            && neiVisible();
+        if (minecraft.theWorld == null || !neiActive && pendingPick == null) {
+            pendingPick = null;
+            CACHE.context(null, Collections.<StackKey>emptySet());
+            hasSnapshot = false;
+            return;
+        }
         TerminalAccess terminal = TerminalAccess.findClientItem(minecraft.thePlayer);
         if (minecraft.theWorld == null || terminal == null) {
             pendingPick = null;
@@ -102,11 +114,10 @@ public final class WirelessClient {
             return;
         }
         LinkedHashMap<StackKey, ItemStack> wanted = new LinkedHashMap<StackKey, ItemStack>();
-        if ((Config.inventoryOverlay || Config.neiMiddleCraft) && minecraft.currentScreen instanceof GuiContainer gui
-            && neiVisible()) {
+        if (neiActive && minecraft.currentScreen instanceof GuiContainer gui) {
             Point mouse = GuiDraw.getMousePosition();
             ItemStack hovered = neiCraftItem(gui, mouse.x, mouse.y);
-            if (hovered != null) wanted.put(new StackKey(hovered), hovered);
+            if (hovered != null) wanted.put(KEYS.key(hovered), hovered);
             collect(ItemPanels.itemPanel.getGrid(), wanted);
             if (NEIClientConfig.showHistoryPanelWidget()) collect(historyGrid(), wanted);
             collect(ItemPanels.bookmarkPanel.getGrid(), wanted);
@@ -138,7 +149,7 @@ public final class WirelessClient {
         if (grid.getPerPage() == 0) return;
         for (ItemsGridSlot slot : grid.getMask()) {
             ItemStack item = slot.getItemStack();
-            if (item != null && item.getItem() != null) wanted.put(new StackKey(item), item);
+            if (item != null && item.getItem() != null) wanted.put(KEYS.key(item), item);
         }
     }
 
@@ -151,7 +162,7 @@ public final class WirelessClient {
             if (widget instanceof RecipeInventorySource source) {
                 source.ae2cf$collectItems(stack -> {
                     if (stack != null && stack.item != null && stack.item.getItem() != null) {
-                        wanted.put(new StackKey(stack.item), stack.item);
+                        wanted.put(KEYS.key(stack.item), stack.item);
                     }
                 });
             }
@@ -228,7 +239,7 @@ public final class WirelessClient {
 
     private static void drawStock(ItemStack item, Rectangle4i rect, boolean bookmark, long now) {
         if (item == null) return;
-        InventoryViewCache.Stock stock = CACHE.peekForDisplay(new StackKey(item), now);
+        InventoryViewCache.Stock stock = CACHE.peekForDisplay(KEYS.key(item), now);
         if (stock == null) return;
         Minecraft minecraft = Minecraft.getMinecraft();
         int textX = bookmark ? (rect.x + 1) * 2
@@ -290,7 +301,7 @@ public final class WirelessClient {
             || hasSnapshot && (!validTerminal || !accessible)) return false;
         ItemStack item = neiCraftItem(gui, mouseX, mouseY);
         if (item == null) return false; // Does not claim ordinary inventory or AE terminal slots.
-        InventoryViewCache.Stock stock = CACHE.peek(new StackKey(item), System.nanoTime());
+        InventoryViewCache.Stock stock = CACHE.peek(KEYS.key(item), System.nanoTime());
         if (stock != null && !stock.craftable) return false;
         // A cold/stale cache is advisory, never authority: claim this one press and let the
         // server validate it once. Do not replay it to other crafting handlers after a timeout.
@@ -373,7 +384,7 @@ public final class WirelessClient {
             MovingObjectPosition current = minecraft.objectMouseOver;
             ItemStack picked = pickedItem(minecraft);
             return current != null && picked != null
-                && item.equals(new StackKey(picked))
+                && item.matches(picked)
                 && current.blockX == request.x
                 && current.blockY == request.y
                 && current.blockZ == request.z;

@@ -133,7 +133,9 @@ public final class RecentTerminalClient {
     private static void applyPending() {
         Minecraft minecraft = Minecraft.getMinecraft();
         long now = System.nanoTime();
-        boolean changed = false;
+        // Receive can run before ClientTick at the deadline. An empty binding must still
+        // remove an expired decoration instead of consuming expiry without a repaint.
+        boolean changed = HISTORY.expire(now);
         boolean newItems = false;
         for (java.util.Iterator<Pending> iterator = PENDING.iterator(); iterator.hasNext();) {
             Pending pending = iterator.next();
@@ -145,12 +147,16 @@ public final class RecentTerminalClient {
             if (minecraft.thePlayer == null || minecraft.thePlayer.dimension != packet.dimension
                 || !(minecraft.currentScreen instanceof GuiMEMonitorable gui)
                 || gui.inventorySlots.windowId != packet.windowId) continue;
+            boolean hadItems = !HISTORY.newestFirst(now)
+                .isEmpty();
+            boolean newBinding = gridId != packet.gridId || windowId != packet.windowId;
             if (gridId != packet.gridId) HISTORY.clear();
             gridId = packet.gridId;
             windowId = packet.windowId;
             lastSequence = packet.sequence;
             for (ItemStack item : packet.items) HISTORY.add(new StackKey(item), item, now);
-            changed = true;
+            // Empty initial binding is bookkeeping, not a reason to rebuild a large view.
+            changed |= !packet.items.isEmpty() || newBinding && hadItems;
             newItems |= !packet.items.isEmpty();
             iterator.remove();
         }

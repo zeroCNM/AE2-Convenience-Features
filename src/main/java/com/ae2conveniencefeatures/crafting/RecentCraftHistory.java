@@ -14,6 +14,7 @@ public final class RecentCraftHistory<K, V> {
     private final LinkedHashMap<K, V> entries = new LinkedHashMap<K, V>();
     private long openedAt;
     private boolean active;
+    private List<V> snapshot = Collections.emptyList();
 
     public void add(K key, V value, long now) {
         expire(now);
@@ -23,6 +24,7 @@ public final class RecentCraftHistory<K, V> {
         }
         entries.remove(key);
         entries.put(key, value);
+        snapshot = null;
         while (entries.size() > MAX_ITEMS) entries.remove(
             entries.keySet()
                 .iterator()
@@ -39,14 +41,18 @@ public final class RecentCraftHistory<K, V> {
 
     public List<V> newestFirst(long now) {
         expire(now);
-        List<V> result = new ArrayList<V>(entries.values());
-        Collections.reverse(result);
-        return result;
+        if (snapshot == null) {
+            List<V> result = new ArrayList<V>(entries.values());
+            Collections.reverse(result);
+            snapshot = Collections.unmodifiableList(result);
+        }
+        return snapshot;
     }
 
     public void clear() {
         entries.clear();
         active = false;
+        snapshot = Collections.emptyList();
     }
 
     /** Move existing display references, pad the last recent row, leave the normal order intact. */

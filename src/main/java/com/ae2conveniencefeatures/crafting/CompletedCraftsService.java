@@ -75,24 +75,29 @@ public final class CompletedCraftsService {
                 BOUND.remove(player);
                 continue;
             }
-            CompletedCraftsPacket packet = new CompletedCraftsPacket();
-            String owner = player.getCommandSenderName()
-                .toLowerCase(Locale.ROOT);
-            List<Completed> queue = PENDING.get(owner);
+            String owner = PENDING.isEmpty() ? null
+                : player.getCommandSenderName()
+                    .toLowerCase(Locale.ROOT);
+            List<Completed> queue = owner == null ? null : PENDING.get(owner);
+            CompletedCraftsPacket packet = null;
             if (queue != null) {
                 Iterator<Completed> iterator = queue.iterator();
                 while (iterator.hasNext()) {
                     Completed item = iterator.next();
                     IGrid origin = item.grid.get();
-                    if (origin == grid) packet.items.add(item.item);
+                    if (origin == grid) {
+                        if (packet == null) packet = new CompletedCraftsPacket();
+                        packet.items.add(item.item);
+                    }
                     if (origin == null || origin == grid) iterator.remove();
                 }
                 if (queue.isEmpty()) PENDING.remove(owner);
             }
             Bound previous = BOUND.get(player);
-            if (packet.items.isEmpty() && previous != null
+            if (packet == null && previous != null
                 && previous.terminal.get() == terminal
                 && previous.grid.get() == grid) continue;
+            if (packet == null) packet = new CompletedCraftsPacket();
             packet.gridId = GRIDS.computeIfAbsent(grid, ignored -> ++gridSequence);
             packet.sequence = ++sequence;
             packet.dimension = player.dimension;

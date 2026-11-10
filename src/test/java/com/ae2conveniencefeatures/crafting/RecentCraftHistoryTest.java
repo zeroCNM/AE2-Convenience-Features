@@ -27,7 +27,16 @@ public final class RecentCraftHistoryTest {
             history.newestFirst(20)
                 .equals(Arrays.asList("B", "A")),
             "latest completed order is first");
+        List<String> cachedOrder = history.newestFirst(20);
+        check(history.newestFirst(21) == cachedOrder, "unchanged history reuses its ordered snapshot");
         history.add("a", "A refreshed", 30);
+        check(cachedOrder.equals(Arrays.asList("B", "A")), "adding an order does not mutate an older snapshot");
+        try {
+            cachedOrder.clear();
+            throw new AssertionError("history snapshots must be immutable");
+        } catch (UnsupportedOperationException expected) {
+            check(true, "callers cannot mutate cached history order");
+        }
         check(
             history.newestFirst(40)
                 .equals(Arrays.asList("A refreshed", "B")),
@@ -116,6 +125,49 @@ public final class RecentCraftHistoryTest {
             RecentCraftHistory.visibleRows(180, 9, 0, 45) == 5,
             "large history cannot shift pins outside the viewport");
         check(RecentCraftHistory.visibleRows(0, 9, 0, 45) == 0, "expired rows restore native pin positions");
+
+        RecentCraftView<String> decoration = new RecentCraftView<>();
+        view = new ArrayList<>(normal);
+        decoration.apply(view, Arrays.asList("glass", "iron"), 9);
+        check(decoration.prefixSlots() == 9, "view decoration tracks the full prefix");
+        decoration.apply(view, Collections.singletonList("gold"), 9);
+        check(
+            view.get(0)
+                .equals("gold") && Collections.frequency(view, "iron") == 1,
+            "local completion refresh replaces the prefix instead of decorating it twice");
+        check(
+            view.subList(9, view.size())
+                .equals(Arrays.asList("stone", "iron", "glass")),
+            "local refresh preserves native search/sort order without sorting again");
+        decoration.restore(view);
+        check(view.equals(normal) && !view.contains(null), "native paused-update input never contains our padding");
+        decoration.restore(view);
+        check(view.equals(normal), "repeated restoration is harmless");
+        view.clear();
+        view.addAll(Arrays.asList("glass", "stone"));
+        decoration.apply(view, Collections.singletonList("iron"), 12);
+        check(
+            decoration.prefixSlots() == 12 && view.get(0)
+                .equals("iron"),
+            "updated native search view allows independent recent targets and resized columns");
+        decoration.apply(view, Collections.emptyList(), 12);
+        check(
+            view.equals(Arrays.asList("glass", "stone")) && decoration.prefixSlots() == 0,
+            "expiry restores the latest native view, not an older search result");
+        decoration.apply(view, Arrays.asList(null, null), 9);
+        check(
+            view.equals(Arrays.asList("glass", "stone")) && decoration.prefixSlots() == 0,
+            "unavailable targets do not retain a snapshot or add a row");
+        List<Object> largeNative = new ArrayList<>();
+        for (int i = 0; i < 100_000; i++) largeNative.add(new Object());
+        List<Object> large = new ArrayList<>(largeNative);
+        RecentCraftView<Object> largeDecoration = new RecentCraftView<>();
+        largeDecoration.apply(large, largeNative.subList(99900, 100000), 9);
+        check(
+            largeDecoration.prefixSlots() == 108 && large.get(0) == largeNative.get(99900),
+            "large terminal promotes actual references with complete padding");
+        largeDecoration.restore(large);
+        check(large.equals(largeNative), "100000-item terminal restores all native references and exact order");
         System.out.println("PASS: " + checks + " recent craft lifetime/order/layout regression checks");
     }
 }

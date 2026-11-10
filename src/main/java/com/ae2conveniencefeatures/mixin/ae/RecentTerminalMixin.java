@@ -91,6 +91,7 @@ public abstract class RecentTerminalMixin extends AEBaseGui implements RecentTer
             || perRow <= 0) return;
         RecentRepo repo = RecentTerminalClient.repo(this);
         int prefix = repo == null ? 0 : repo.ae2cf$prefixSlots();
+        if (prefix == 0 && ae2cf$shifts.isEmpty()) return;
         int scroll = getScrollBar().getCurrentScroll();
         int visibleRows = RecentCraftHistory.visibleRows(prefix, perRow, scroll, monitorableSlots.length);
         int monitorTop = Integer.MAX_VALUE;
@@ -112,7 +113,10 @@ public abstract class RecentTerminalMixin extends AEBaseGui implements RecentTer
 
     @Unique
     private void ae2cf$shift(VirtualMESlot slot, int amount) {
-        slot.setY(ae2cf$baseY(slot) + amount);
-        ae2cf$shifts.put(slot, amount);
+        int previous = ae2cf$shifts.getOrDefault(slot, 0);
+        if (previous == amount) return;
+        slot.setY(slot.getY() + amount - previous);
+        if (amount == 0) ae2cf$shifts.remove(slot);
+        else ae2cf$shifts.put(slot, amount);
     }
 }
