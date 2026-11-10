@@ -1,1 +1,15 @@
-AE2 Convenience Features is a standalone extraction of the wireless/NEI features developed in this workspace, plus the requested F-key search behavior. It does not include or require AE2-Auto-Pattern-Upload. Gradle wrapper/build template retained under its MIT license (see LICENSE). No ExtendedAE_Plus class or method has been copied.
+AE2 Convenience Features
+
+The mod's feature code, version adaptations and project documentation were written by AI.
+zeroCNM provided requirements and testing feedback.
+
+Functional design and implementation approaches reference:
+- AE2 Auto Pattern Upload: https://github.com/GaLicn/AE2-Auto-Pattern-Upload
+- EAEP / ExtendedAE Plus: https://github.com/GaLicn/ExtendedAE_Plus
+
+This is a standalone implementation. Neither referenced mod is a runtime dependency.
+No ExtendedAE_Plus class or method has been copied.
+
+The Gradle wrapper and build template retain their original MIT license and
+copyright notice (see LICENSE). This attribution is separate from the AI-written
+mod implementation.
