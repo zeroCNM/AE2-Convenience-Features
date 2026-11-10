@@ -1,5 +1,6 @@
 package com.ae2conveniencefeatures;
 
+import com.ae2conveniencefeatures.network.crafting.CompletedCraftsPacket;
 import com.ae2conveniencefeatures.network.wireless.InventorySnapshotPacket;
 import com.ae2conveniencefeatures.network.wireless.WorldPickResultPacket;
 import com.ae2conveniencefeatures.wireless.ServerTasks;
@@ -21,4 +22,6 @@ public class CommonProxy {
     public void invalidateWirelessInventory(long gridId, long revision) {}
 
     public void receiveWorldPickResult(WorldPickResultPacket packet) {}
+
+    public void receiveCompletedCrafts(CompletedCraftsPacket packet) {}
 }

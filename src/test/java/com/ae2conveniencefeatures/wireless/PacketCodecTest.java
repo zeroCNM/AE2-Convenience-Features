@@ -7,6 +7,8 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 
+import com.ae2conveniencefeatures.crafting.RecentCraftHistory;
+import com.ae2conveniencefeatures.network.crafting.CompletedCraftsPacket;
 import com.ae2conveniencefeatures.network.wireless.FullStackCodec;
 import com.ae2conveniencefeatures.network.wireless.InventoryQueryPacket;
 import com.ae2conveniencefeatures.network.wireless.InventorySnapshotPacket;
@@ -175,6 +177,43 @@ public final class PacketCodecTest {
                 result.requestId == 42 && result.dimension == 2 && result.vanillaFallback == fallback,
                 "world result preserves replay decision");
         }
+
+        CompletedCraftsPacket completed = new CompletedCraftsPacket();
+        completed.sequence = 9876543210L;
+        completed.gridId = 2;
+        completed.windowId = 93;
+        completed.dimension = -29;
+        completed.items.add(stack);
+        CompletedCraftsPacket completedCopy = roundTrip(completed, new CompletedCraftsPacket());
+        check(
+            completedCopy.sequence == completed.sequence && completedCopy.gridId == 2
+                && completedCopy.windowId == 93
+                && completedCopy.dimension == -29,
+            "completed orders retain terminal/grid/sequence scope");
+        check(
+            new StackKey(completedCopy.items.get(0)).equals(new StackKey(stack))
+                && completedCopy.items.get(0).stackSize == 1,
+            "completed item identity retains full NBT without claiming quantity");
+        completed.items.clear();
+        check(roundTrip(completed, new CompletedCraftsPacket()).items.isEmpty(), "empty terminal binding is valid");
+        rejects(
+            new CompletedCraftsPacket(),
+            Unpooled.buffer()
+                .writeLong(1)
+                .writeLong(1)
+                .writeInt(0)
+                .writeInt(1)
+                .writeShort(RecentCraftHistory.MAX_ITEMS + 1),
+            "oversized completed batch rejected before allocation");
+        rejects(
+            new CompletedCraftsPacket(),
+            Unpooled.buffer()
+                .writeLong(1)
+                .writeLong(0)
+                .writeInt(0)
+                .writeInt(1)
+                .writeShort(0),
+            "missing completed-order network identity rejected");
 
         rejects(
             new InventoryQueryPacket(),

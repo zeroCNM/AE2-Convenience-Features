@@ -10,6 +10,7 @@ public final class Config {
     public static boolean inventoryOverlay = true;
     public static boolean neiMiddleCraft = true;
     public static boolean worldPickBlock = true;
+    public static boolean completedCraftRows = true;
     public static int searchKeyCode = 33;
 
     private Config() {}
@@ -25,6 +26,11 @@ public final class Config {
             "Middle-click NEI items to open crafting even when stocked.");
         worldPickBlock = config
             .getBoolean("worldPickBlock", "features", true, "Pick blocks from AE stock or open crafting.");
+        completedCraftRows = config.getBoolean(
+            "completedCraftRows",
+            "features",
+            true,
+            "Temporarily show completed player crafting orders first in ME terminals (60 seconds or until closed).");
         searchKeyCode = config
             .getInt("searchKeyCode", "client", 33, 0, 255, "LWJGL key code: F=33, 0 disables hover-to-search.");
         if (config.hasChanged()) config.save();

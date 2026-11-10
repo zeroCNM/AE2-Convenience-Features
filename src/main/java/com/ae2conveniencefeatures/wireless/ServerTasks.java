@@ -5,6 +5,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import net.minecraft.entity.player.EntityPlayerMP;
 
 import com.ae2conveniencefeatures.AE2ConvenienceFeatures;
+import com.ae2conveniencefeatures.crafting.CompletedCraftsService;
 
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
@@ -31,6 +32,7 @@ public final class ServerTasks {
             execute(task);
         }
         execute(WirelessService::flushChanges);
+        execute(CompletedCraftsService::tick);
     }
 
     static void execute(Runnable task) {

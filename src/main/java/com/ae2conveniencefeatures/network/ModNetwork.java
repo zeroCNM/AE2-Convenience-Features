@@ -1,5 +1,6 @@
 package com.ae2conveniencefeatures.network;
 
+import com.ae2conveniencefeatures.network.crafting.CompletedCraftsPacket;
 import com.ae2conveniencefeatures.network.wireless.InventoryInvalidationPacket;
 import com.ae2conveniencefeatures.network.wireless.InventoryQueryPacket;
 import com.ae2conveniencefeatures.network.wireless.InventorySnapshotPacket;
@@ -29,5 +30,6 @@ public final class ModNetwork {
             Side.CLIENT);
         CHANNEL.registerMessage(WorldPickRequestPacket.Handler.class, WorldPickRequestPacket.class, 4, Side.SERVER);
         CHANNEL.registerMessage(WorldPickResultPacket.Handler.class, WorldPickResultPacket.class, 5, Side.CLIENT);
+        CHANNEL.registerMessage(CompletedCraftsPacket.Handler.class, CompletedCraftsPacket.class, 6, Side.CLIENT);
     }
 }

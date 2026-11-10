@@ -1,8 +1,10 @@
-# AE2 Convenience Features 0.7
+# AE2 Convenience Features 0.8
 
 独立的 Minecraft 1.7.10 / GTNH 2.9.0 模组，客户端和服务端均安装。
 
 ## 功能
+
+- 玩家 AE 订单实际制作完成后，在同一网络终端顶部显示临时物品行：最新完成的排最前，同物品按 meta/NBT 去重，按终端列数补齐整行，超出自动续行。未打开终端时等待下一次打开同网络终端；关闭后清除，持续打开则从首批显示起 60 秒整栏清除。再次完成的订单可开始新一批临时行。取物仍走原生 AE 槽位和服务端校验。
 
 - 携带有效的 AE2 无线终端，在 NEI 右侧、历史栏、左侧书签以及配方页按 Shift+右键取 1，Shift+左键取一组。无可提取库存但有样板时进入 AE2 原生数量/确认下单流程。
 - 零库存不显示数字；有样板且具备合成权限时，物品左上角显示白色 `+`。右侧、历史栏及配方页内物品的库存数量为右下白字；左侧书签为左下绿字，均贴格子底部。配方页左侧机器列表不显示库存或加号。刷新直接替换快照，不周期隐藏数字；连续 10 秒收不到有效数据后停止显示旧数字。
@@ -16,9 +18,9 @@
 ## 安装
 
 1. 客户端与服务端从 mods 移除旧 AE2-Auto-Pattern-Upload，备份原 jar。
-2. 双端加入 `AE2 Convenience Features 0.7.jar`，删除旧版功能包。不要安装开发包 `dev.jar` 或源码包 `sources.jar`。
+2. 双端加入 `AE2 Convenience Features 0.8.jar`，删除旧版功能包。不要安装开发包 `dev.jar` 或源码包 `sources.jar`。
 3. 原 GTNH 2.9.0 自带 AE2、GTNH NEI、CodeChickenLib、UniMixins 已满足必需运行条件。Baubles 为可选，AE2FC 搜索兼容没有硬类型依赖。
-4. 新配置生成在 `config/ae2conveniencefeatures.cfg`。`neiActions`、`neiMiddleCraft`、`inventoryOverlay`、`worldPickBlock` 可单独关闭；`searchKeyCode=33` 表示 F，设 0 关闭。
+4. 新配置生成在 `config/ae2conveniencefeatures.cfg`。`neiActions`、`neiMiddleCraft`、`inventoryOverlay`、`worldPickBlock`、`completedCraftRows` 可单独关闭；`searchKeyCode=33` 表示 F，设 0 关闭。
 
 不需要安装任何额外第三方模组。不要同时保留新旧两个功能模组，否则旧模组仍会注册自己的网络与按键处理。
 
@@ -39,9 +41,17 @@ JDK 17 运行 Gradle，Java 8 字节码输出：
 
 ```sh
 bash build.sh spotlessApply build
-python3 scripts/audit-artifact.py "build/libs/AE2 Convenience Features 0.7.jar"
+python3 scripts/audit-artifact.py "build/libs/AE2 Convenience Features 0.8.jar"
 ```
 
 `build` 自动运行实际 Minecraft 物品/NBT、Forge/Netty 编解码、缓存及手持物品守恒回归。具体运行结果、接口核实和 14 项自检随交付报告提供。构建通过不能代替 GTNH 客户端交互实测。
 
-每次发布功能更新都递增一次版本号，统一维护根目录 `VERSION`；构建和产物审计均读取该文件。同一次更新重复构建不增加版本。上轮应计为 0.6，历史 0.5 交付原样留档；本次为 0.7，下一次为 0.8。
+每次发布功能更新都递增一次版本号，统一维护根目录 `VERSION`；构建和产物审计均读取该文件。同一次更新重复构建不增加版本。本次为 0.8，下一次为 0.9，历史交付保留。
+
+## 完成物品临时栏
+
+此功能覆盖 AE2 原生存储终端及其兼容子类，不要求身上携带无线终端。它在实际完成回调触发，取消或提交失败不计入。合并订单按成功提交时记录的玩家分发；原生 CPU 从存档恢复的订单可使用 AE 保存的来源玩家兜底。只显示下单目标物品，不把配方中间产物和副产物加入栏位。
+
+临时栏使用终端原生库存引用，数量随原生同步更新；显示排序独立于普通搜索，普通列表中同物品被移到临时行。已有原生固定栏仍保留，在可见的临时行下方显示。翻页滚动后，两部分的点击位置跟随实际显示。临时行沿用终端的滚动区域，记录较多时可滚动查看。最多保留最近 256 种完成物品，满后淘汰最旧的。
+
+在 AE 数量、确认、CPU 状态子页面之间切换视为本次终端访问的延续；主动关闭、切到其他普通界面或不同 AE 网络会清除已显示记录。待显示的完成记录按网络隔离，显示后从服务器队列消费，不会关闭重开后再次出现。服务器重启会清除尚未显示的临时记录；已持久化的原生订单仍由 AE 继续制作。

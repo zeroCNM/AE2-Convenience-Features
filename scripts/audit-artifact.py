@@ -20,11 +20,12 @@ with ZipFile(artifact) as archive:
     assert version.encode() in archive.read(prefix + "Tags.class")
     assert version.encode() in archive.read(prefix + "AE2ConvenienceFeatures.class")
     config = json.loads(archive.read("mixins.ae2conveniencefeatures.json"))
-    assert config["mixins"] == ["PlatformBaublesMixin"]
+    assert config["mixins"] == ["PlatformBaublesMixin", "ae.CraftingCompletionMixin"]
     assert set(config["client"]) == {"nei.ItemsGridInventoryMixin", "nei.HistoryGridAccessor",
         "ae.MonitorSearchAccessor", "ae.InterfaceSearchAccessor", "ae.DiagnosticSearchAccessor",
         "ae.LevelSearchAccessor", "nei.ContainerMiddleClickMixin", "nei.RecipeMiddleClickMixin",
-        "nei.RecipeContainerAccessor", "nei.LegacyRecipeInventoryMixin", "nei.RecipeInventoryMixin"}
+        "nei.RecipeContainerAccessor", "nei.LegacyRecipeInventoryMixin", "nei.RecipeInventoryMixin",
+        "ae.RecentItemRepoMixin", "ae.RecentTerminalMixin"}
     for side in ("mixins", "client", "server"):
         for name in config[side]:
             assert config["package"].replace(".", "/") + "/" + name.replace(".", "/") + ".class" in names, name
@@ -35,6 +36,9 @@ with ZipFile(artifact) as archive:
     assert recipe_mapping["mouseMovedOrUp(III)V"].endswith("func_146286_b(III)V")
     assert recipe_mapping["mouseClickMove(IIIJ)V"].endswith("func_146273_a(IIIJ)V")
     assert recipe_mapping["initGui()V"].endswith("func_73866_w_()V")
+    terminal_mapping = refmap[prefix + "mixin/ae/RecentTerminalMixin"]
+    assert terminal_mapping["initGui()V"].endswith("func_73866_w_()V")
+    assert terminal_mapping["drawScreen(IIF)V"].endswith("func_73863_a(IIF)V")
     manifest = archive.read("META-INF/MANIFEST.MF").decode()
     assert "MixinConfigs: mixins.ae2conveniencefeatures.json" in manifest
     classes = sorted(name for name in names if name.endswith(".class"))
@@ -50,13 +54,15 @@ with ZipFile(artifact) as archive:
             raise AssertionError("hard AE2FC type dependency: " + name)
         if b"baubles/api/" in data:
             optional_api_references.append(name)
-        if name.startswith((prefix + "wireless/", prefix + "network/wireless/")):
+        if name.startswith((prefix + "wireless/", prefix + "network/wireless/", prefix + "crafting/",
+                            prefix + "network/crafting/")):
             assert b"net/minecraft/client/" not in data, "client type in common class: " + name
     assert optional_api_references == [prefix + "wireless/BaublesBridge.class"]
     service = archive.read(prefix + "wireless/WirelessService.class")
     assert b"getPickBlock" not in service and b"func_149694_d" not in service
     assert b"setPrimaryGui" in service and b"QuickCraftingReturn" in service
     assert prefix + "wireless/QuickCraftingReturn.class" in names
+    assert prefix + "network/crafting/CompletedCraftsPacket.class" in names
     for name in ("FullStackCodec", "InventoryQueryPacket", "InventorySnapshotPacket", "WirelessActionPacket",
                  "InventoryInvalidationPacket", "WorldPickRequestPacket", "WorldPickResultPacket"):
         assert prefix + "network/wireless/" + name + ".class" in names

@@ -5,7 +5,8 @@
   "compatibilityLevel": "JAVA_8",
   "refmap": "mixins.ae2conveniencefeatures.refmap.json",
   "mixins": [
-    "PlatformBaublesMixin"
+    "PlatformBaublesMixin",
+    "ae.CraftingCompletionMixin"
   ],
   "client": [
     "nei.ItemsGridInventoryMixin",
@@ -17,6 +18,8 @@
     "ae.InterfaceSearchAccessor",
     "ae.DiagnosticSearchAccessor",
     "ae.LevelSearchAccessor",
+    "ae.RecentItemRepoMixin",
+    "ae.RecentTerminalMixin",
     "nei.ContainerMiddleClickMixin",
     "nei.RecipeMiddleClickMixin"
   ],

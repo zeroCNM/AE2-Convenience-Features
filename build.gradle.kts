@@ -28,7 +28,14 @@ val packetRegression by tasks.registering(JavaExec::class) {
 }
 
 tasks.named("check") {
-    dependsOn(cacheRegression, nbtRegression, packetRegression, "serverTasksRegression", "handInventoryRegression")
+    dependsOn(cacheRegression, nbtRegression, packetRegression, "serverTasksRegression", "handInventoryRegression", "recentCraftsRegression")
+}
+
+tasks.register<JavaExec>("recentCraftsRegression") {
+    group = "verification"
+    dependsOn(tasks.named("testClasses"))
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("com.ae2conveniencefeatures.crafting.RecentCraftHistoryTest")
 }
 
 tasks.register<JavaExec>("serverTasksRegression") {
