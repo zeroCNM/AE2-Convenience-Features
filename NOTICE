@@ -10,6 +10,14 @@ Functional design and implementation approaches reference:
 This is a standalone implementation. Neither referenced mod is a runtime dependency.
 No ExtendedAE_Plus class or method has been copied.
 
-The Gradle wrapper and build template retain their original MIT license and
-copyright notice (see LICENSE). This attribution is separate from the AI-written
-mod implementation.
+Licensing scope:
+- The original mod implementation, tests and project-authored documentation are
+  available under the BSD Zero Clause License (0BSD); see LICENSE.
+- Portions retained from the GTNH build/configuration template, including
+  gtnhShared, retain their MIT license and original copyright notice; see
+  LICENSES/MIT-GTNH-Template.txt.
+- Gradle Wrapper scripts (gradlew, gradlew.bat) and gradle/wrapper/gradle-wrapper.jar
+  retain their Apache License 2.0 terms and existing notices; see
+  LICENSES/Apache-2.0.txt. The wrapper JAR also contains its original license.
+
+These third-party licenses are not replaced by the license on the new mod code.

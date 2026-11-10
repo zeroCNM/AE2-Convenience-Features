@@ -1,0 +1,14 @@
+AE2 Convenience Features
+Source: https://github.com/zeroCNM/AE2-Convenience-Features
+
+The mod implementation is available under the BSD Zero Clause License (0BSD);
+see LICENSE. Feature code, version adaptations and project documentation were
+written by AI; zeroCNM provided requirements and testing feedback.
+
+Functional design and implementation approaches reference:
+- https://github.com/GaLicn/AE2-Auto-Pattern-Upload
+- https://github.com/GaLicn/ExtendedAE_Plus
+
+Neither referenced mod is a runtime dependency. The source repository's build
+template and Gradle Wrapper retain their separate MIT and Apache-2.0 licenses;
+see the repository NOTICE and LICENSES directory for their terms.

@@ -1,6 +1,6 @@
 # AE2 Convenience Features
 
-面向 **GTNH 2.9.0 / Minecraft 1.7.10** 的 AE2 与 NEI 便捷功能模组，当前版本 **0.9**。
+面向 **GTNH 2.9.0 / Minecraft 1.7.10** 的 AE2 与 NEI 便捷功能模组，当前版本 **0.9**。新增模组代码采用 **[0BSD](LICENSE)** 协议。
 
 > **本项目完全由 AI 编写。** 模组功能代码、版本适配与项目文档均由 AI 完成，zeroCNM 提供需求与测试反馈。构建脚手架沿用 GTNH 模板，并保留原许可证。
 
@@ -48,4 +48,10 @@ bash build.sh spotlessApply build
 
 曾基于'样板上传'开发，后独立出全部额外添加功能
 
-本项目为独立实现，不依赖上述两个模组。许可证与来源说明见 [LICENSE](LICENSE) 和 [NOTICE](NOTICE)。
+本项目为独立实现，不依赖上述两个模组。
+
+## 许可证
+
+本项目新增的模组代码、测试和文档采用 **[0BSD（零条款 BSD）](LICENSE)**：任何人都可以免费使用、复制、修改、传播、商用或闭源，无需署名、公开源码或另行申请许可。
+
+构建模板保留原有 [MIT 协议](LICENSES/MIT-GTNH-Template.txt)，Gradle Wrapper 保留 [Apache-2.0 协议](LICENSES/Apache-2.0.txt)；这些第三方内容仍按各自协议使用。范围与来源说明见 [NOTICE](NOTICE)。
