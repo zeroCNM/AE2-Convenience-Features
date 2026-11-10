@@ -8,21 +8,23 @@ from pathlib import Path
 from zipfile import ZipFile
 
 artifact = Path(sys.argv[1])
+version = (Path(__file__).resolve().parents[1] / "VERSION").read_text().strip()
 prefix = "com/ae2conveniencefeatures/"
-assert artifact.name == "AE2 Convenience Features 0.5.jar", "artifact filename must use spaces"
+assert artifact.name == "AE2 Convenience Features " + version + ".jar", "artifact filename/version mismatch"
 with ZipFile(artifact) as archive:
     names = set(archive.namelist())
     assert archive.testzip() is None, "corrupt ZIP entry"
     metadata = json.loads(archive.read("mcmod.info"))["modList"][0]
     assert (metadata["modid"], metadata["name"], metadata["version"]) == (
-        "ae2conveniencefeatures", "AE2 Convenience Features", "0.5")
-    assert b"0.5" in archive.read(prefix + "Tags.class")
-    assert b"0.5" in archive.read(prefix + "AE2ConvenienceFeatures.class")
+        "ae2conveniencefeatures", "AE2 Convenience Features", version)
+    assert version.encode() in archive.read(prefix + "Tags.class")
+    assert version.encode() in archive.read(prefix + "AE2ConvenienceFeatures.class")
     config = json.loads(archive.read("mixins.ae2conveniencefeatures.json"))
     assert config["mixins"] == ["PlatformBaublesMixin"]
     assert set(config["client"]) == {"nei.ItemsGridInventoryMixin", "nei.HistoryGridAccessor",
         "ae.MonitorSearchAccessor", "ae.InterfaceSearchAccessor", "ae.DiagnosticSearchAccessor",
-        "ae.LevelSearchAccessor", "nei.ContainerMiddleClickMixin", "nei.RecipeMiddleClickMixin"}
+        "ae.LevelSearchAccessor", "nei.ContainerMiddleClickMixin", "nei.RecipeMiddleClickMixin",
+        "nei.RecipeContainerAccessor", "nei.LegacyRecipeInventoryMixin", "nei.RecipeInventoryMixin"}
     for side in ("mixins", "client", "server"):
         for name in config[side]:
             assert config["package"].replace(".", "/") + "/" + name.replace(".", "/") + ".class" in names, name
@@ -61,7 +63,7 @@ with ZipFile(artifact) as archive:
     assert not any("Provider" in name or "Upload" in name for name in names)
 print(json.dumps({
     "artifact": artifact.name,
-    "version": "0.5",
+    "version": version,
     "sha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),
     "class_count": len(classes),
     "java8_bytecode": True,

@@ -20,6 +20,7 @@ import org.lwjgl.opengl.GL11;
 
 import com.ae2conveniencefeatures.Config;
 import com.ae2conveniencefeatures.mixin.nei.HistoryGridAccessor;
+import com.ae2conveniencefeatures.mixin.nei.RecipeContainerAccessor;
 import com.ae2conveniencefeatures.network.ModNetwork;
 import com.ae2conveniencefeatures.network.wireless.InventoryQueryPacket;
 import com.ae2conveniencefeatures.network.wireless.InventorySnapshotPacket;
@@ -37,9 +38,12 @@ import codechicken.nei.ItemsGrid;
 import codechicken.nei.ItemsGrid.ItemsGridSlot;
 import codechicken.nei.NEIClientConfig;
 import codechicken.nei.NEIClientUtils;
+import codechicken.nei.PositionedStack;
+import codechicken.nei.Widget;
 import codechicken.nei.guihook.GuiContainerManager;
 import codechicken.nei.guihook.IContainerObjectHandler;
 import codechicken.nei.recipe.GuiRecipe;
+import codechicken.nei.scroll.ScrollContainer;
 import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.common.eventhandler.EventPriority;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
@@ -106,6 +110,7 @@ public final class WirelessClient {
             collect(ItemPanels.itemPanel.getGrid(), wanted);
             if (NEIClientConfig.showHistoryPanelWidget()) collect(historyGrid(), wanted);
             collect(ItemPanels.bookmarkPanel.getGrid(), wanted);
+            if (Config.inventoryOverlay && gui instanceof GuiRecipe) collectRecipes((GuiRecipe<?>) gui, wanted);
         }
         String identity = System.identityHashCode(minecraft.theWorld) + ":"
             + System.identityHashCode(minecraft.currentScreen)
@@ -134,6 +139,22 @@ public final class WirelessClient {
         for (ItemsGridSlot slot : grid.getMask()) {
             ItemStack item = slot.getItemStack();
             if (item != null && item.getItem() != null) wanted.put(new StackKey(item), item);
+        }
+    }
+
+    private static void collectRecipes(GuiRecipe<?> gui, Map<StackKey, ItemStack> wanted) {
+        ScrollContainer body = ((RecipeContainerAccessor) gui).ae2cf$getRecipeContainer();
+        if (body == null) return;
+        // Query all current recipe-body stacks on tick, without requiring a hovered item.
+        // Never traverse recipeCatalyst: its machine list must not gain stock overlays.
+        for (Widget widget : body.getWidgets()) {
+            if (widget instanceof RecipeInventorySource source) {
+                source.ae2cf$collectItems(stack -> {
+                    if (stack != null && stack.item != null && stack.item.getItem() != null) {
+                        wanted.put(new StackKey(stack.item), stack.item);
+                    }
+                });
+            }
         }
     }
 
@@ -166,38 +187,58 @@ public final class WirelessClient {
             || !accessible
             || !supportedGrid(grid)
             || grid.getPerPage() == 0) return;
-        Minecraft minecraft = Minecraft.getMinecraft();
         long now = System.nanoTime();
         boolean bookmark = grid == ItemPanels.bookmarkPanel.getGrid();
+        beginStockDraw();
+        try {
+            for (ItemsGridSlot slot : grid.getMask()) {
+                drawStock(slot.getItemStack(), grid.getSlotRect(slot.slotIndex), bookmark, now);
+            }
+        } finally {
+            endStockDraw();
+        }
+    }
+
+    /** Only called by recipe-body widgets, inside NEI's translation and clipping scope. */
+    public static void drawRecipeItem(PositionedStack stack) {
+        if (!Config.inventoryOverlay || !hasSnapshot || !validTerminal || !accessible || stack == null) return;
+        beginStockDraw();
+        try {
+            drawStock(stack.item, new Rectangle4i(stack.relx, stack.rely, 16, 16), false, System.nanoTime());
+        } finally {
+            endStockDraw();
+        }
+    }
+
+    private static void beginStockDraw() {
         GL11.glPushAttrib(
             GL11.GL_ENABLE_BIT | GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT | GL11.GL_CURRENT_BIT);
         GL11.glPushMatrix();
-        try {
-            GL11.glDisable(GL11.GL_LIGHTING);
-            GL11.glDisable(GL11.GL_DEPTH_TEST);
-            GL11.glEnable(GL11.GL_BLEND);
-            GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-            GL11.glScalef(0.5F, 0.5F, 1);
-            for (ItemsGridSlot slot : grid.getMask()) {
-                ItemStack item = slot.getItemStack();
-                if (item == null) continue;
-                InventoryViewCache.Stock stock = CACHE.peekForDisplay(new StackKey(item), now);
-                if (stock == null) continue;
-                Rectangle4i rect = grid.getSlotRect(slot.slotIndex);
-                int textX = bookmark ? (rect.x + 1) * 2
-                    : (rect.x + rect.w - 1) * 2 - minecraft.fontRenderer.getStringWidth(stock.display);
-                int textY = (rect.y + rect.h) * 2 - minecraft.fontRenderer.FONT_HEIGHT;
-                if (stock.count > 0) {
-                    minecraft.fontRenderer
-                        .drawStringWithShadow(stock.display, textX, textY, bookmark ? 0x7EFFB3 : 0xFFFFFF);
-                }
-                if (stock.craftable) {
-                    minecraft.fontRenderer.drawStringWithShadow("+", (rect.x + 1) * 2, (rect.y + 1) * 2, 0xFFFFFF);
-                }
-            }
-        } finally {
-            GL11.glPopMatrix();
-            GL11.glPopAttrib();
+        GL11.glDisable(GL11.GL_LIGHTING);
+        GL11.glDisable(GL11.GL_DEPTH_TEST);
+        GL11.glEnable(GL11.GL_BLEND);
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        GL11.glScalef(0.5F, 0.5F, 1);
+    }
+
+    private static void endStockDraw() {
+        GL11.glPopMatrix();
+        GL11.glPopAttrib();
+    }
+
+    private static void drawStock(ItemStack item, Rectangle4i rect, boolean bookmark, long now) {
+        if (item == null) return;
+        InventoryViewCache.Stock stock = CACHE.peekForDisplay(new StackKey(item), now);
+        if (stock == null) return;
+        Minecraft minecraft = Minecraft.getMinecraft();
+        int textX = bookmark ? (rect.x + 1) * 2
+            : (rect.x + rect.w - 1) * 2 - minecraft.fontRenderer.getStringWidth(stock.display);
+        int textY = (rect.y + rect.h) * 2 - minecraft.fontRenderer.FONT_HEIGHT;
+        if (stock.count > 0) {
+            minecraft.fontRenderer.drawStringWithShadow(stock.display, textX, textY, bookmark ? 0x7EFFB3 : 0xFFFFFF);
+        }
+        if (stock.craftable) {
+            minecraft.fontRenderer.drawStringWithShadow("+", (rect.x + 1) * 2, (rect.y + 1) * 2, 0xFFFFFF);
         }
     }
 

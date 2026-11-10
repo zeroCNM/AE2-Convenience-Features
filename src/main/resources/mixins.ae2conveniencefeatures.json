@@ -10,6 +10,9 @@
   "client": [
     "nei.ItemsGridInventoryMixin",
     "nei.HistoryGridAccessor",
+    "nei.RecipeContainerAccessor",
+    "nei.LegacyRecipeInventoryMixin",
+    "nei.RecipeInventoryMixin",
     "ae.MonitorSearchAccessor",
     "ae.InterfaceSearchAccessor",
     "ae.DiagnosticSearchAccessor",

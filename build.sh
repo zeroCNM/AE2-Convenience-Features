@@ -2,7 +2,7 @@
 set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 # GTNHGradle 1.0.43 reads VERSION, not -Pversion, for its version override.
-export VERSION="${VERSION:-0.5}"
+export VERSION="${VERSION:-$(cat VERSION)}"
 if [ "$#" -eq 0 ]; then
     set -- build
 fi
