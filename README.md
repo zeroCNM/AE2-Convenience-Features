@@ -1,6 +1,6 @@
 # AE2 Convenience Features
 
-面向 **GTNH 2.9.0 / Minecraft 1.7.10** 的 AE2 与 NEI 便捷功能模组，当前版本 **0.9**。新增模组代码采用 **[0BSD](LICENSE)** 协议。
+面向 **GTNH 2.9.0 / Minecraft 1.7.10** 的 AE2 与 NEI 便捷功能模组，当前版本 **0.10**。新增模组代码采用 **[0BSD](LICENSE)** 协议。
 
 > **本项目完全由 AI 编写。** 模组功能代码、版本适配与项目文档均由 AI 完成，zeroCNM 提供需求与测试反馈。构建脚手架沿用 GTNH 模板，并保留原许可证。
 
@@ -15,13 +15,13 @@
 | F 键搜索 | 在支持的 AE 终端界面悬停物品并按 `F`，将物品名填入搜索框。支持存储、接口、诊断及 AE2FC 等级终端。 |
 | 制作完成临时栏 | 实际制作完成的物品显示在同网络终端顶部，最新优先、自动续行。关闭终端或首次显示满 60 秒后清除。 |
 
-NEI 库存、快捷取物与中键功能需要携带有效的已绑定无线终端；F 搜索和制作完成栏不要求随身携带无线终端。普通 NEI 区域使用右下白色库存数字，左侧书签使用左下绿色数字，零库存不显示。
+NEI 库存、快捷取物与中键功能需要携带有效的已绑定无线终端；F 搜索和制作完成栏不要求随身携带无线终端。NEI 物品栏和历史栏使用右下白色库存数字，书签及配方页面使用左下绿色数字，零库存不显示。
 
 取物与下单由服务端校验绑定、电量、范围和权限，并精确区分物品 meta/NBT。兼容处理以 GTNH 已核实的输入路径为准，其他模组组合仍需实测。
 
 ## 安装
 
-客户端与服务端均安装 `AE2 Convenience Features 0.9.jar`，并移除旧版本。本模组只需 GTNH 2.9.0 自带的前置，无需额外安装第三方模组。各功能可在 `config/ae2conveniencefeatures.cfg` 中单独关闭。
+客户端与服务端均安装 `AE2 Convenience Features 0.10.jar`，并移除旧版本。本模组只需 GTNH 2.9.0 自带的前置，无需额外安装第三方模组。各功能可在 `config/ae2conveniencefeatures.cfg` 中单独关闭。
 
 本模组独立运行，不包含样板上传或多方块配方池识别功能；迁移时请移除旧的修改版样板上传模组，以免重复注册功能。
 
@@ -35,9 +35,9 @@ cd AE2-Convenience-Features
 bash build.sh spotlessApply build
 ```
 
-正式模组位于 `build/libs/AE2 Convenience Features 0.9.jar`。不要将 `dev.jar` 或 `sources.jar` 放入游戏。
+正式模组位于 `build/libs/AE2 Convenience Features 0.10.jar`。不要将 `dev.jar` 或 `sources.jar` 放入游戏。
 
-0.9 已通过 171 项回归和纯 GTNH 服务端启动验证；图形客户端交互仍需实测。[开发与兼容说明](docs/DEVELOPMENT.md) · [验证记录与实测清单](docs/VALIDATION.md)
+已通过 171 项回归和构建检查；图形客户端交互仍需实测。[开发与兼容说明](docs/DEVELOPMENT.md) · [验证记录与实测清单](docs/VALIDATION.md)
 
 ## 参考与致谢
 

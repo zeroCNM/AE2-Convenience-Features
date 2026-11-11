@@ -1,4 +1,4 @@
-# AE2 Convenience Features 0.9
+# AE2 Convenience Features 0.10
 
 独立的 Minecraft 1.7.10 / GTNH 2.9.0 模组，客户端和服务端均安装。
 
@@ -7,7 +7,7 @@
 - 玩家 AE 订单实际制作完成后，在同一网络终端顶部显示临时物品行：最新完成的排最前，同物品按 meta/NBT 去重，按终端列数补齐整行，超出自动续行。未打开终端时等待下一次打开同网络终端；关闭后清除，持续打开则从首批显示起 60 秒整栏清除。再次完成的订单可开始新一批临时行。取物仍走原生 AE 槽位和服务端校验。
 
 - 携带有效的 AE2 无线终端，在 NEI 右侧、历史栏、左侧书签以及配方页按 Shift+右键取 1，Shift+左键取一组。无可提取库存但有样板时进入 AE2 原生数量/确认下单流程。
-- 零库存不显示数字；有样板且具备合成权限时，物品左上角显示白色 `+`。右侧、历史栏及配方页内物品的库存数量为右下白字；左侧书签为左下绿字，均贴格子底部。配方页左侧机器列表不显示库存或加号。刷新直接替换快照，不周期隐藏数字；连续 10 秒收不到有效数据后停止显示旧数字。
+- 零库存不显示数字；有样板且具备合成权限时，物品左上角显示白色 `+`。右侧和历史栏物品的库存数量为右下白字；配方页内物品与左侧书签为左下绿字，均贴格子底部。配方页左侧机器列表不显示库存或加号。刷新直接替换快照，不周期隐藏数字；连续 10 秒收不到有效数据后停止显示旧数字。
 - NEI 中键：右侧、历史、左侧书签/标签和配方页均支持，无需 Shift。有样板时直接进入原生下单页，即使已有库存也可以下单，不提取库存。
 - 世界中键：优先选中背包已有的同物品（精确 meta/NBT），否则从 AE 提取至快捷栏并选中；没有库存但有样板则下单。不会覆盖或删除原手持物品，背包满时拒绝提取。
 - F 键将悬停物品名写入 AE2 终端、接口终端、诊断终端的搜索框；兼容 GTNH 自带 AE2FC 的等级终端及无线等级终端。文本框已有焦点时不抢键。
@@ -18,7 +18,7 @@
 ## 安装
 
 1. 客户端与服务端从 mods 移除旧 AE2-Auto-Pattern-Upload，备份原 jar。
-2. 双端加入 `AE2 Convenience Features 0.9.jar`，删除旧版功能包。不要安装开发包 `dev.jar` 或源码包 `sources.jar`。
+2. 双端加入 `AE2 Convenience Features 0.10.jar`，删除旧版功能包。不要安装开发包 `dev.jar` 或源码包 `sources.jar`。
 3. 原 GTNH 2.9.0 自带 AE2、GTNH NEI、CodeChickenLib、UniMixins 已满足必需运行条件。Baubles 为可选，AE2FC 搜索兼容没有硬类型依赖。
 4. 新配置生成在 `config/ae2conveniencefeatures.cfg`。`neiActions`、`neiMiddleCraft`、`inventoryOverlay`、`worldPickBlock`、`completedCraftRows` 可单独关闭；`searchKeyCode=33` 表示 F，设 0 关闭。
 
@@ -41,12 +41,12 @@ JDK 17 运行 Gradle，Java 8 字节码输出：
 
 ```sh
 bash build.sh spotlessApply build
-python3 scripts/audit-artifact.py "build/libs/AE2 Convenience Features 0.9.jar"
+python3 scripts/audit-artifact.py "build/libs/AE2 Convenience Features 0.10.jar"
 ```
 
 `build` 自动运行实际 Minecraft 物品/NBT、Forge/Netty 编解码、缓存及手持物品守恒回归。具体运行结果、接口核实和 14 项自检随交付报告提供。构建通过不能代替 GTNH 客户端交互实测。
 
-每次发布功能更新都递增一次版本号，统一维护根目录 `VERSION`；构建和产物审计均读取该文件。同一次更新重复构建不增加版本。本次为 0.9，下一次为 0.10，历史交付保留。
+每次发布功能更新都递增一次版本号，统一维护根目录 `VERSION`；构建和产物审计均读取该文件。同一次更新重复构建不增加版本。本次为 0.10，下一次为 0.11，历史交付保留。
 
 ## 完成物品临时栏
 
@@ -63,3 +63,7 @@ python3 scripts/audit-artifact.py "build/libs/AE2 Convenience Features 0.9.jar"
 NEI 相同 ItemStack 的标识使用有上限的弱引用缓存，每次命中仍比较物品、meta 和完整 NBT；嵌套 NBT 原地修改也立即失效。世界中没有 NEI 界面和待处理取物请求时，不再逐 tick 扫描无线终端。服务端无新增完成记录、终端和网络未变时，不分配空完成通知包。没有调整安全校验、输入优先级、同步频率、网络包编号或 NEI 500 ms 有效期。
 
 用户复测后卡顿未稳定复现，本轮没有证明其根因。171 项回归与静态字节码审计用于检查行为和重复工作；未采集客户端帧耗时，不把这些结果换算成 FPS 提升。
+
+## 0.10 配方页库存数字
+
+NEI 配方查看页面内物品的库存数字改为左下角绿色，与左侧书签使用相同样式（0x7EFFB3），仍贴格子底部。新旧 NEI 配方控件共用这一绘制入口；白色可合成加号、零库存隐藏和配方页机器列表排除规则保留。

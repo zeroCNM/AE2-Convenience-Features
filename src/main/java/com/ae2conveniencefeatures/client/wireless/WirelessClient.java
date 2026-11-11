@@ -215,7 +215,7 @@ public final class WirelessClient {
         if (!Config.inventoryOverlay || !hasSnapshot || !validTerminal || !accessible || stack == null) return;
         beginStockDraw();
         try {
-            drawStock(stack.item, new Rectangle4i(stack.relx, stack.rely, 16, 16), false, System.nanoTime());
+            drawStock(stack.item, new Rectangle4i(stack.relx, stack.rely, 16, 16), true, System.nanoTime());
         } finally {
             endStockDraw();
         }
@@ -237,16 +237,16 @@ public final class WirelessClient {
         GL11.glPopAttrib();
     }
 
-    private static void drawStock(ItemStack item, Rectangle4i rect, boolean bookmark, long now) {
+    private static void drawStock(ItemStack item, Rectangle4i rect, boolean leftAligned, long now) {
         if (item == null) return;
         InventoryViewCache.Stock stock = CACHE.peekForDisplay(KEYS.key(item), now);
         if (stock == null) return;
         Minecraft minecraft = Minecraft.getMinecraft();
-        int textX = bookmark ? (rect.x + 1) * 2
+        int textX = leftAligned ? (rect.x + 1) * 2
             : (rect.x + rect.w - 1) * 2 - minecraft.fontRenderer.getStringWidth(stock.display);
         int textY = (rect.y + rect.h) * 2 - minecraft.fontRenderer.FONT_HEIGHT;
         if (stock.count > 0) {
-            minecraft.fontRenderer.drawStringWithShadow(stock.display, textX, textY, bookmark ? 0x7EFFB3 : 0xFFFFFF);
+            minecraft.fontRenderer.drawStringWithShadow(stock.display, textX, textY, leftAligned ? 0x7EFFB3 : 0xFFFFFF);
         }
         if (stock.craftable) {
             minecraft.fontRenderer.drawStringWithShadow("+", (rect.x + 1) * 2, (rect.y + 1) * 2, 0xFFFFFF);
