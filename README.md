@@ -1,6 +1,6 @@
 # AE2 Convenience Features
 
-面向 **GTNH 2.9.0 / Minecraft 1.7.10** 的 AE2 与 NEI 便捷功能模组，当前版本 **0.10**。新增模组代码采用 **[0BSD](LICENSE)** 协议。
+面向 **GTNH 2.9.0 / Minecraft 1.7.10** 的 AE2 与 NEI 便捷功能模组，当前版本 **0.11**。新增模组代码采用 **[0BSD](LICENSE)** 协议。
 
 > **本项目完全由 AI 编写。** 模组功能代码、版本适配与项目文档均由 AI 完成，zeroCNM 提供需求与测试反馈。构建脚手架沿用 GTNH 模板，并保留原许可证。
 
@@ -10,6 +10,7 @@
 | --- | --- |
 | NEI 库存与样板标记 | 显示 AE 正库存数量；有可下单样板时显示左上角白色 `+`。支持物品栏、历史、书签与配方页面，配方页左侧机器列表不显示。 |
 | NEI 快捷取物 | `Shift + 右键` 取 1 个，`Shift + 左键` 取一组；无库存但有样板时进入 AE 下单界面。 |
+| NEI 填满背包 | 按住 `空格`，对物品单击左键，将 AE 库存填入背包及快捷栏的可用位置；库存不足就取现有数量，只有零库存且有样板才下单。保留背包已有物品。 |
 | NEI 中键下单 | 悬停有样板的物品按中键，直接打开下单界面，已有库存也能下单。 |
 | 世界中键选取 | 对准方块按中键：优先选中背包物品，否则从 AE 取到快捷栏；无库存但有样板时下单。没有无线终端时保留原版中键行为。 |
 | F 键搜索 | 在支持的 AE 终端界面悬停物品并按 `F`，将物品名填入搜索框。支持存储、接口、诊断及 AE2FC 等级终端。 |
@@ -21,7 +22,7 @@ NEI 库存、快捷取物与中键功能需要携带有效的已绑定无线终�
 
 ## 安装
 
-客户端与服务端均安装 `AE2 Convenience Features 0.10.jar`，并移除旧版本。本模组只需 GTNH 2.9.0 自带的前置，无需额外安装第三方模组。各功能可在 `config/ae2conveniencefeatures.cfg` 中单独关闭。
+客户端与服务端均安装 `AE2 Convenience Features 0.11.jar`，并移除旧版本。本模组只需 GTNH 2.9.0 自带的前置，无需额外安装第三方模组。各功能可在 `config/ae2conveniencefeatures.cfg` 中单独关闭。
 
 本模组独立运行，不包含样板上传或多方块配方池识别功能；迁移时请移除旧的修改版样板上传模组，以免重复注册功能。
 
@@ -35,9 +36,9 @@ cd AE2-Convenience-Features
 bash build.sh spotlessApply build
 ```
 
-正式模组位于 `build/libs/AE2 Convenience Features 0.10.jar`。不要将 `dev.jar` 或 `sources.jar` 放入游戏。
+正式模组位于 `build/libs/AE2 Convenience Features 0.11.jar`。不要将 `dev.jar` 或 `sources.jar` 放入游戏。
 
-已通过 171 项回归和构建检查；图形客户端交互仍需实测。[开发与兼容说明](docs/DEVELOPMENT.md) · [验证记录与实测清单](docs/VALIDATION.md)
+回归与构建检查见[验证记录](docs/VALIDATION.md)；图形客户端交互仍需实测。[开发与兼容说明](docs/DEVELOPMENT.md)
 
 ## 参考与致谢
 

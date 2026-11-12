@@ -148,6 +148,14 @@ public final class PacketCodecTest {
             craft.action == WirelessActionPacket.CRAFT_ONLY && craft.item.stackSize == 1
                 && new StackKey(craft.item).equals(new StackKey(stack)),
             "explicit crafting preserves full identity independently of item quantity");
+        WirelessActionPacket fill = roundTrip(
+            new WirelessActionPacket(WirelessActionPacket.FILL_INVENTORY, -1, stack),
+            new WirelessActionPacket());
+        check(
+            fill.action == WirelessActionPacket.FILL_INVENTORY && fill.dimension == -1
+                && fill.item.stackSize == 1
+                && new StackKey(fill.item).equals(new StackKey(stack)),
+            "fill action preserves meta/NBT and carries no client-controlled amount");
         WorldPickRequestPacket world = new WorldPickRequestPacket();
         world.requestId = 42;
         world.dimension = 2;
@@ -238,8 +246,13 @@ public final class PacketCodecTest {
         rejects(
             new WirelessActionPacket(),
             Unpooled.buffer()
-                .writeByte(3),
+                .writeByte(4),
             "unknown action rejected");
+        rejects(
+            new WirelessActionPacket(),
+            Unpooled.buffer()
+                .writeByte(255),
+            "unsigned unknown action rejected");
         rejects(new WorldPickRequestPacket(), worldHeader(1, 0, 6, 0), "invalid side rejected");
         rejects(new WorldPickRequestPacket(), worldHeader(1, 0, 0, 9), "invalid selected slot rejected");
         rejects(new WorldPickRequestPacket(), worldHeader(1, -1, 0, 0), "invalid height rejected");

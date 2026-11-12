@@ -117,6 +117,8 @@ public final class WirelessService {
     }
 
     public static void act(EntityPlayerMP player, WirelessActionPacket request) {
+        if (request.action < WirelessActionPacket.TAKE_ONE || request.action > WirelessActionPacket.FILL_INVENTORY)
+            return;
         boolean craftOnly = request.action == WirelessActionPacket.CRAFT_ONLY;
         if ((craftOnly ? !Config.neiMiddleCraft : !Config.neiActions) || player.dimension != request.dimension
             || throttle(ACTIONS, player, 100_000_000L)) return;
@@ -146,8 +148,10 @@ public final class WirelessService {
             return;
         }
 
-        int wanted = request.action == WirelessActionPacket.TAKE_ONE ? 1 : item.getMaxStackSize();
-        int amount = Math.min(wanted, capacity(player, item));
+        boolean fill = request.action == WirelessActionPacket.FILL_INVENTORY;
+        int room = BackpackInventory.capacity(player.inventory, item);
+        int wanted = fill ? room : request.action == WirelessActionPacket.TAKE_ONE ? 1 : item.getMaxStackSize();
+        int amount = Math.min(wanted, room);
         if (amount <= 0) {
             tell(player, "wireless.inventory_full");
             return;
@@ -160,13 +164,21 @@ public final class WirelessService {
         }
 
         ItemStack delivered = extracted.getItemStack();
-        player.inventory.addItemStackToInventory(delivered);
+        // A fill can exceed one stack. Split it legally and recheck slots after storage hooks ran.
+        // Never open crafting after this point, even if stock or power only covers part of the request.
+        if (fill) BackpackInventory.insert(player.inventory, delivered);
+        else player.inventory.addItemStackToInventory(delivered);
         if (delivered.stackSize > 0) {
             // An inventory hook may reject insertion despite the capacity check. Return leftovers;
             // if reinsertion is also rejected, drop only the actual extracted remainder, never a copy.
             IAEItemStack remainder = monitor.injectItems(AEItemStack.create(delivered), Actionable.MODULATE, source);
             if (remainder != null && remainder.getStackSize() > 0) {
-                player.dropPlayerItemWithRandomChoice(remainder.getItemStack(), false);
+                ItemStack unreturned = remainder.getItemStack();
+                while (unreturned.stackSize > 0) {
+                    player.dropPlayerItemWithRandomChoice(
+                        unreturned.splitStack(Math.min(unreturned.stackSize, unreturned.getMaxStackSize())),
+                        false);
+                }
             }
         }
         player.inventory.markDirty();
@@ -178,20 +190,6 @@ public final class WirelessService {
                 gridId(access.object.getGrid()),
                 observer == null ? CHANGES.incrementAndGet() : observer.revision.get()),
             player);
-    }
-
-    private static int capacity(EntityPlayerMP player, ItemStack item) {
-        int max = Math.min(item.getMaxStackSize(), player.inventory.getInventoryStackLimit());
-        int room = 0;
-        for (int i = 0; i < Math.min(36, player.inventory.mainInventory.length); i++) {
-            ItemStack slot = player.inventory.mainInventory[i];
-            if (slot == null) room += max;
-            else if (slot.isItemEqual(item) && ItemStack.areItemStackTagsEqual(slot, item)) {
-                room += Math.max(0, Math.min(max, slot.getMaxStackSize()) - slot.stackSize);
-            }
-            if (room >= max) return max;
-        }
-        return room;
     }
 
     public static void pick(EntityPlayerMP player, WorldPickRequestPacket request) {

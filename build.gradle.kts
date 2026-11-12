@@ -28,7 +28,7 @@ val packetRegression by tasks.registering(JavaExec::class) {
 }
 
 tasks.named("check") {
-    dependsOn(cacheRegression, nbtRegression, packetRegression, "serverTasksRegression", "handInventoryRegression", "recentCraftsRegression")
+    dependsOn(cacheRegression, nbtRegression, packetRegression, "serverTasksRegression", "handInventoryRegression", "backpackInventoryRegression", "recentCraftsRegression")
 }
 
 tasks.register<JavaExec>("recentCraftsRegression") {
@@ -51,6 +51,13 @@ tasks.register<JavaExec>("handInventoryRegression") {
     dependsOn(tasks.named("testClasses"))
     classpath = sourceSets.test.get().runtimeClasspath
     mainClass.set("com.ae2conveniencefeatures.wireless.HandInventoryTest")
+}
+
+tasks.register<JavaExec>("backpackInventoryRegression") {
+    group = "verification"
+    dependsOn(tasks.named("testClasses"))
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("com.ae2conveniencefeatures.wireless.BackpackInventoryTest")
 }
 
 // GTNH's convention also sets the reobfuscated filename after evaluation; apply our separator last.

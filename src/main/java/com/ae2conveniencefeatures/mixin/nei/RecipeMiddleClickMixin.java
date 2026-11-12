@@ -15,32 +15,34 @@ import codechicken.nei.recipe.GuiRecipe;
 public abstract class RecipeMiddleClickMixin {
 
     @Unique
-    private boolean ae2cf$ownsMiddle;
+    private int ae2cf$ownedButtons;
 
     @Inject(method = "mouseClicked(III)V", at = @At("HEAD"), cancellable = true)
-    private void ae2cf$craft(int x, int y, int button, CallbackInfo callback) {
-        if (button == 2
-            && (ae2cf$ownsMiddle || WirelessClient.craftClick((GuiRecipe<?>) (Object) this, x, y, button))) {
-            ae2cf$ownsMiddle = true;
+    private void ae2cf$shortcut(int x, int y, int button, CallbackInfo callback) {
+        if (button != 0 && button != 2) return;
+        int mask = 1 << button;
+        if ((ae2cf$ownedButtons & mask) != 0
+            || WirelessClient.priorityClick((GuiRecipe<?>) (Object) this, x, y, button)) {
+            ae2cf$ownedButtons |= mask;
             callback.cancel();
         }
     }
 
     @Inject(method = "mouseMovedOrUp(III)V", at = @At("HEAD"), cancellable = true)
     private void ae2cf$release(int x, int y, int button, CallbackInfo callback) {
-        if (button == 2 && ae2cf$ownsMiddle) {
-            ae2cf$ownsMiddle = false;
+        if ((button == 0 || button == 2) && (ae2cf$ownedButtons & 1 << button) != 0) {
+            ae2cf$ownedButtons &= ~(1 << button);
             callback.cancel();
         }
     }
 
     @Inject(method = "mouseClickMove(IIIJ)V", at = @At("HEAD"), cancellable = true)
     private void ae2cf$drag(int x, int y, int button, long elapsed, CallbackInfo callback) {
-        if (button == 2 && ae2cf$ownsMiddle) callback.cancel();
+        if ((button == 0 || button == 2) && (ae2cf$ownedButtons & 1 << button) != 0) callback.cancel();
     }
 
     @Inject(method = "initGui()V", at = @At("HEAD"))
     private void ae2cf$reset(CallbackInfo callback) {
-        ae2cf$ownsMiddle = false;
+        ae2cf$ownedButtons = 0;
     }
 }

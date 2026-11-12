@@ -16,6 +16,7 @@ import net.minecraftforge.client.event.MouseEvent;
 import net.minecraftforge.common.ForgeHooks;
 import net.minecraftforge.common.MinecraftForge;
 
+import org.lwjgl.input.Keyboard;
 import org.lwjgl.opengl.GL11;
 
 import com.ae2conveniencefeatures.Config;
@@ -66,7 +67,7 @@ public final class WirelessClient {
         FMLCommonHandler.instance()
             .bus()
             .register(events);
-        // GuiContainerManager calls handlers in list order. Our narrowly scoped Shift clicks must
+        // GuiContainerManager calls handlers in list order. Our narrowly scoped retrieval clicks must
         // run before NEI's standard recipe/cheat clicks; all other input returns false.
         GuiContainerManager.inputHandlers.addFirst(new WirelessInputHandler());
     }
@@ -254,6 +255,7 @@ public final class WirelessClient {
     }
 
     public static boolean click(GuiContainer gui, int mouseX, int mouseY, int button) {
+        if (fillClick(gui, mouseX, mouseY, button)) return true;
         if (!Config.neiActions || button != 0 && button != 1 || !NEIClientUtils.shiftKey() || !neiVisible())
             return false;
         Minecraft minecraft = Minecraft.getMinecraft();
@@ -267,6 +269,28 @@ public final class WirelessClient {
                 item));
         CACHE.refresh();
         return true;
+    }
+
+    /** One press sends one request; never repeats while Space or the mouse button remains held. */
+    private static boolean fillClick(GuiContainer gui, int mouseX, int mouseY, int button) {
+        if (button != 0 || !Config.neiActions || !Keyboard.isKeyDown(Keyboard.KEY_SPACE) || !neiVisible()) return false;
+        Minecraft minecraft = Minecraft.getMinecraft();
+        if (minecraft.thePlayer == null || minecraft.theWorld == null
+            || minecraft.currentScreen != gui
+            || TerminalAccess.findClientItem(minecraft.thePlayer) == null
+            || hasSnapshot && (!validTerminal || !accessible)) return false;
+        ItemStack item = neiItem(gui, mouseX, mouseY);
+        if (item == null) return false;
+        // Quantity and the zero-stock crafting fallback are decided only by the server.
+        ModNetwork.CHANNEL.sendToServer(
+            new WirelessActionPacket(WirelessActionPacket.FILL_INVENTORY, minecraft.thePlayer.dimension, item));
+        CACHE.refresh();
+        return true;
+    }
+
+    /** Own eligible presses before NEI recipe/cheat handlers, including their release and drag. */
+    public static boolean priorityClick(GuiContainer gui, int mouseX, int mouseY, int button) {
+        return button == 2 ? craftClick(gui, mouseX, mouseY, button) : fillClick(gui, mouseX, mouseY, button);
     }
 
     private static ItemStack neiItem(GuiContainer gui, int mouseX, int mouseY) {
