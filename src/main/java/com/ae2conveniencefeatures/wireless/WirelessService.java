@@ -1,6 +1,7 @@
 package com.ae2conveniencefeatures.wireless;
 
 import java.lang.ref.WeakReference;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.WeakHashMap;
@@ -11,6 +12,7 @@ import net.minecraft.inventory.Container;
 import net.minecraft.item.ItemStack;
 import net.minecraft.network.play.server.S09PacketHeldItemChange;
 import net.minecraft.util.ChatComponentTranslation;
+import net.minecraft.world.World;
 import net.minecraftforge.common.util.ForgeDirection;
 
 import com.ae2conveniencefeatures.Config;
@@ -31,11 +33,14 @@ import appeng.api.networking.security.PlayerSource;
 import appeng.api.networking.storage.IBaseMonitor;
 import appeng.api.storage.IMEMonitor;
 import appeng.api.storage.IMEMonitorHandlerReceiver;
+import appeng.api.storage.data.IAEFluidStack;
 import appeng.api.storage.data.IAEItemStack;
+import appeng.api.storage.data.IAEStack;
 import appeng.api.storage.data.IItemList;
 import appeng.container.implementations.ContainerCraftAmount;
 import appeng.core.sync.GuiBridge;
 import appeng.util.Platform;
+import appeng.util.item.AEFluidStack;
 import appeng.util.item.AEItemStack;
 
 /** All methods and maps in this class are used exclusively on the server tick thread. */
@@ -69,7 +74,7 @@ public final class WirelessService {
     }
 
     public static void query(EntityPlayerMP player, InventoryQueryPacket request) {
-        if (player.dimension != request.dimension || request.items.size() > InventoryQueryPacket.MAX_ITEMS
+        if (player.dimension != request.dimension || request.targets.size() > InventoryQueryPacket.MAX_ITEMS
             || throttle(QUERIES, player, 40_000_000L)) return;
 
         TerminalAccess access = TerminalAccess.resolveServer(player);
@@ -81,39 +86,58 @@ public final class WirelessService {
         reply.accessible = access != null && access.accessible;
         // Range/security failure exposes no inventory and cannot enter the crafting branch.
         IMEMonitor<IAEItemStack> monitor = reply.accessible ? access.object.getItemInventory() : null;
+        IMEMonitor<IAEFluidStack> fluidMonitor = reply.accessible ? access.object.getFluidInventory() : null;
         IItemList<IAEItemStack> stored = monitor == null ? null : monitor.getStorageList();
-        ICraftingGrid crafting = monitor == null ? null
+        IItemList<IAEFluidStack> fluids = fluidMonitor == null ? null : fluidMonitor.getStorageList();
+        ICraftingGrid crafting = !reply.accessible ? null
             : access.object.getGrid()
                 .getCache(ICraftingGrid.class);
         boolean canCraft = crafting != null
             && TerminalAccess.permits(player, access.object.getGrid(), SecurityPermissions.CRAFT);
-        if (monitor != null) reply.gridId = gridId(access.object.getGrid());
-        observe(player, monitor, reply.gridId);
+        Map<IAEStack<?>, ?> fluidPatterns = canCraft && request.targets.stream()
+            .anyMatch(WirelessTarget::isFluid) ? crafting.getCraftingMultiPatterns() : Collections.emptyMap();
+        if (reply.accessible) reply.gridId = gridId(access.object.getGrid());
+        observe(player, monitor, fluidMonitor, reply.gridId);
         Observer observer = OBSERVERS.get(player);
         reply.revision = observer == null ? 0 : observer.revision.get();
 
-        for (ItemStack item : request.items) {
-            IAEItemStack key = AEItemStack.create(item);
-            IAEItemStack existing = stored == null ? null : stored.findPrecise(key);
-            long count = existing == null ? 0 : Math.max(0, existing.getStackSize());
-            if (count > 0 && request.extractableOnly) {
-                // The world's middle-click branch needs extractable stock, including storage
-                // filters; use only a one-item simulation after the cached lookup, never a scan.
-                IAEItemStack available = monitor.extractItems(
-                    key.copy()
-                        .setStackSize(1),
-                    Actionable.SIMULATE,
-                    new PlayerSource(player, access.object));
-                if (available == null || available.getStackSize() < 1) count = 0;
+        PlayerSource source = reply.accessible && request.extractableOnly ? new PlayerSource(player, access.object)
+            : null;
+        for (WirelessTarget target : request.targets) {
+            IAEStack<?> key;
+            long count;
+            if (target.isFluid()) {
+                IAEFluidStack fluid = AEFluidStack.create(target.fluid());
+                key = fluid;
+                count = count(fluidMonitor, fluids, fluid, source);
+            } else {
+                IAEItemStack item = AEItemStack.create(target.item());
+                key = item;
+                count = count(monitor, stored, item, source);
             }
-            reply.items.add(item);
+            if (key == null) continue;
+            reply.targets.add(target);
             reply.counts.add(count);
-            reply.craftable.add(
-                canCraft && !crafting.getCraftingFor(key, null, -1, player.worldObj)
-                    .isEmpty());
+            reply.craftable.add(canCraft && hasPattern(crafting, fluidPatterns, key, player.worldObj));
         }
         if (observer != null && observer.revision.get() == reply.revision) observer.dirty = false;
         ModNetwork.CHANNEL.sendTo(reply, player);
+    }
+
+    private static <T extends IAEStack<T>> long count(IMEMonitor<T> monitor, IItemList<T> stored, T key,
+        PlayerSource extractableOnly) {
+        if (stored == null || key == null) return 0;
+        T existing = stored.findPrecise(key);
+        if (existing == null || existing.getStackSize() <= 0) return 0;
+        if (extractableOnly != null) {
+            T available = monitor.extractItems(
+                key.copy()
+                    .setStackSize(1),
+                Actionable.SIMULATE,
+                extractableOnly);
+            if (available == null || available.getStackSize() < 1) return 0;
+        }
+        return existing.getStackSize();
     }
 
     public static void act(EntityPlayerMP player, WirelessActionPacket request) {
@@ -128,18 +152,24 @@ public final class WirelessService {
             ModNetwork.CHANNEL.sendTo(new InventoryInvalidationPacket(0, 0), player);
             return;
         }
-        IMEMonitor<IAEItemStack> monitor = access.object.getItemInventory();
-        if (monitor == null) return;
-        ItemStack item = request.item;
-        if (item == null || item.getItem() == null) return;
+        WirelessTarget target = request.target;
+        if (target == null) return;
+        if (target.isFluid()) {
+            // A display fluid cannot be inserted directly into the player's backpack.
+            openCrafting(player, access, AEFluidStack.create(target.fluid()), true);
+            return;
+        }
+        ItemStack item = target.item();
         IAEItemStack key = AEItemStack.create(item);
-        key.setStackSize(1);
+        if (key == null) return;
         // An explicit NEI middle-click always crafts, including stocked items. This branch
         // exits before even simulating extraction; the server rechecks the actual pattern and CRAFT permission.
         if (craftOnly) {
             openCrafting(player, access, key, true);
             return;
         }
+        IMEMonitor<IAEItemStack> monitor = access.object.getItemInventory();
+        if (monitor == null) return;
         PlayerSource source = new PlayerSource(player, access.object);
         IAEItemStack available = monitor.extractItems(key.copy(), Actionable.SIMULATE, source);
 
@@ -193,6 +223,7 @@ public final class WirelessService {
     }
 
     public static void pick(EntityPlayerMP player, WorldPickRequestPacket request) {
+        if (!WorldPickRequestPacket.isVanillaSlot(request.selectedSlot)) return;
         Long previous = PICK_IDS.get(player);
         if (previous != null && request.requestId <= previous) {
             pickResult(player, request, false);
@@ -291,8 +322,6 @@ public final class WirelessService {
         if (request.y < 0 || request.y > 255
             || request.side < 0
             || request.side > 5
-            || request.selectedSlot < 0
-            || request.selectedSlot > 8
             || player.getDistanceSq(request.x + 0.5, request.y + 0.5, request.z + 0.5) > 64
             || !player.worldObj.blockExists(request.x, request.y, request.z)
             || player.worldObj.isAirBlock(request.x, request.y, request.z)
@@ -304,17 +333,28 @@ public final class WirelessService {
         return request.item.copy();
     }
 
-    private static void openCrafting(EntityPlayerMP player, TerminalAccess access, IAEItemStack item,
-        boolean feedback) {
+    private static boolean hasPattern(ICraftingGrid crafting, Map<IAEStack<?>, ?> fluidPatterns, IAEStack<?> key,
+        World world) {
+        // GTNH AE2's getCraftingFor(IAEStack) only matches items. Its multi-pattern index
+        // contains native fluid outputs; keep the original item overload for legacy item conversion.
+        return key instanceof IAEItemStack item ? !crafting.getCraftingFor(item, null, -1, world)
+            .isEmpty() : fluidPatterns.containsKey(key);
+    }
+
+    private static void openCrafting(EntityPlayerMP player, TerminalAccess access, IAEStack<?> item, boolean feedback) {
         ICraftingGrid crafting = access.object.getGrid()
             .getCache(ICraftingGrid.class);
-        if (crafting == null || crafting.getCraftingFor(item, null, -1, player.worldObj)
-            .isEmpty()) {
-            if (feedback) tell(player, "wireless.no_pattern");
-            return;
-        }
         if (!TerminalAccess.permits(player, access.object.getGrid(), SecurityPermissions.CRAFT)) {
             if (feedback) tell(player, "wireless.no_craft_permission");
+            return;
+        }
+        if (item == null || crafting == null
+            || !hasPattern(
+                crafting,
+                item.isFluid() ? crafting.getCraftingMultiPatterns() : Collections.emptyMap(),
+                item,
+                player.worldObj)) {
+            if (feedback) tell(player, "wireless.no_pattern");
             return;
         }
         // AE2 owns quantity entry, confirmation, job submission, and its own permission checks.
@@ -337,18 +377,18 @@ public final class WirelessService {
         player.addChatMessage(new ChatComponentTranslation("ae2cf." + key));
     }
 
-    private static void observe(EntityPlayerMP player, IMEMonitor<IAEItemStack> monitor, long gridId) {
+    private static void observe(EntityPlayerMP player, IMEMonitor<IAEItemStack> items, IMEMonitor<IAEFluidStack> fluids,
+        long gridId) {
         Observer old = OBSERVERS.get(player);
-        if (old != null && old.monitor != monitor) {
-            old.monitor.removeListener(old);
+        if (old != null && (old.gridId != gridId || old.items.monitor != items || old.fluids.monitor != fluids)) {
+            old.removeListeners();
             OBSERVERS.remove(player);
             old = null;
         }
-        if (monitor == null) return;
+        if (items == null && fluids == null) return;
         if (old == null) {
-            old = new Observer(player, monitor, gridId);
+            old = new Observer(player, items, fluids, gridId);
             OBSERVERS.put(player, old);
-            monitor.addListener(old, monitor);
         }
         old.lastQuery = System.nanoTime();
     }
@@ -363,7 +403,7 @@ public final class WirelessService {
             EntityPlayerMP player = row.getKey();
             if (player.isDead || now - observer.lastQuery > 3_000_000_000L
                 || !player.worldObj.playerEntities.contains(player)) {
-                observer.monitor.removeListener(observer);
+                observer.removeListeners();
                 iterator.remove();
             } else if (observer.dirty && now - observer.lastSent > 250_000_000L) {
                 observer.dirty = false;
@@ -374,38 +414,57 @@ public final class WirelessService {
         }
     }
 
-    private static final class Observer implements IMEMonitorHandlerReceiver<IAEItemStack> {
+    private static final class Observer {
 
         final WeakReference<EntityPlayerMP> player;
-        final IMEMonitor<IAEItemStack> monitor;
+        final Listener<IAEItemStack> items;
+        final Listener<IAEFluidStack> fluids;
         final long gridId;
         long lastQuery;
         long lastSent;
         volatile boolean dirty;
         final AtomicLong revision = new AtomicLong(CHANGES.incrementAndGet());
 
-        Observer(EntityPlayerMP player, IMEMonitor<IAEItemStack> monitor, long gridId) {
+        Observer(EntityPlayerMP player, IMEMonitor<IAEItemStack> items, IMEMonitor<IAEFluidStack> fluids, long gridId) {
             this.player = new WeakReference<EntityPlayerMP>(player);
-            this.monitor = monitor;
             this.gridId = gridId;
+            this.items = new Listener<>(items);
+            this.fluids = new Listener<>(fluids);
         }
 
-        @Override
-        public boolean isValid(Object token) {
-            return token == monitor && player.get() != null;
+        void removeListeners() {
+            items.remove();
+            fluids.remove();
         }
 
-        @Override
-        public void postChange(IBaseMonitor<IAEItemStack> monitor, Iterable<IAEItemStack> changes,
-            BaseActionSource source) {
-            revision.set(CHANGES.incrementAndGet());
-            dirty = true;
-        }
+        private final class Listener<T extends IAEStack<T>> implements IMEMonitorHandlerReceiver<T> {
 
-        @Override
-        public void onListUpdate() {
-            revision.set(CHANGES.incrementAndGet());
-            dirty = true;
+            final IMEMonitor<T> monitor;
+
+            Listener(IMEMonitor<T> monitor) {
+                this.monitor = monitor;
+                if (monitor != null) monitor.addListener(this, monitor);
+            }
+
+            void remove() {
+                if (monitor != null) monitor.removeListener(this);
+            }
+
+            @Override
+            public boolean isValid(Object token) {
+                return token == monitor && player.get() != null;
+            }
+
+            @Override
+            public void postChange(IBaseMonitor<T> monitor, Iterable<T> changes, BaseActionSource source) {
+                onListUpdate();
+            }
+
+            @Override
+            public void onListUpdate() {
+                revision.set(CHANGES.incrementAndGet());
+                dirty = true;
+            }
         }
     }
 }

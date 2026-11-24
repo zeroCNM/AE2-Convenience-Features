@@ -1,11 +1,21 @@
 package com.ae2conveniencefeatures.wireless;
 
+import java.io.File;
 import java.lang.reflect.Method;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.Random;
 
+import net.minecraft.init.Bootstrap;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.launchwrapper.LaunchClassLoader;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraftforge.fluids.FluidRegistry;
+import net.minecraftforge.fluids.FluidStack;
 
 import com.ae2conveniencefeatures.crafting.RecentCraftHistory;
 import com.ae2conveniencefeatures.network.crafting.CompletedCraftsPacket;
@@ -16,7 +26,9 @@ import com.ae2conveniencefeatures.network.wireless.WirelessActionPacket;
 import com.ae2conveniencefeatures.network.wireless.WorldPickRequestPacket;
 import com.ae2conveniencefeatures.network.wireless.WorldPickResultPacket;
 
+import cpw.mods.fml.common.Loader;
 import cpw.mods.fml.common.network.ByteBufUtils;
+import cpw.mods.fml.common.network.internal.FMLProxyPacket;
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -68,7 +80,28 @@ public final class PacketCodecTest {
     }
 
     public static void main(String[] args) throws Exception {
-        Item item = new Item() {
+        // Forge's fluid registry needs the legacy launch classloader, even without a running game.
+        String[] paths = System.getProperty("java.class.path")
+            .split(File.pathSeparator);
+        URL[] urls = new URL[paths.length];
+        for (int i = 0; i < paths.length; i++) urls[i] = new File(paths[i]).toURI()
+            .toURL();
+        Thread thread = Thread.currentThread();
+        ClassLoader original = thread.getContextClassLoader();
+        try (LaunchClassLoader loader = new LaunchClassLoader(urls)) {
+            thread.setContextClassLoader(loader);
+            loader.loadClass(PacketCodecTest.class.getName())
+                .getMethod("runChecks")
+                .invoke(null);
+        } finally {
+            thread.setContextClassLoader(original);
+        }
+    }
+
+    public static void runChecks() throws Exception {
+        Loader.injectData("7", "10", "99", "99", "1.7.10", "9.05", new File("."), Collections.emptyList());
+        Bootstrap.func_151354_b();
+        Item registeredItem = new Item() {
 
             @Override
             public boolean getShareTag() {
@@ -80,8 +113,8 @@ public final class PacketCodecTest {
         Method seed = Item.itemRegistry.getClass()
             .getDeclaredMethod("addObjectRaw", int.class, String.class, Object.class);
         seed.setAccessible(true);
-        seed.invoke(Item.itemRegistry, 30000, "ae2cf_regression:private_nbt", item);
-        ItemStack stack = new ItemStack(item, 64, 7);
+        seed.invoke(Item.itemRegistry, 30000, "ae2cf_regression:private_nbt", registeredItem);
+        ItemStack stack = new ItemStack(registeredItem, 64, 7);
         NBTTagCompound tag = new NBTTagCompound();
         NBTTagCompound nested = new NBTTagCompound();
         nested.setString("owner", "Alice");
@@ -105,13 +138,32 @@ public final class PacketCodecTest {
             bytes.release();
         }
 
-        InventoryQueryPacket query = roundTrip(
-            new InventoryQueryPacket(123456789L, -1, Collections.singletonList(stack), true),
-            new InventoryQueryPacket());
+        WirelessTarget item = WirelessTarget.item(stack);
+        FluidStack water = new FluidStack(FluidRegistry.WATER, 2500, tag);
+        WirelessTarget fluid = WirelessTarget.fluid(water);
+        check(fluid.fluid().amount == 1 && water.amount == 2500, "wire fluid amount normalized without mutation");
+        check(
+            fluid.equals(WirelessTarget.fluid(new FluidStack(FluidRegistry.WATER, 17, tag))),
+            "different recipe display amounts use the same fluid key");
+        check(
+            !fluid.equals(WirelessTarget.fluid(new FluidStack(FluidRegistry.WATER, 2500))),
+            "fluid tags remain part of wireless identity");
+        check(!item.equals(fluid) && !fluid.equals(item), "fluid and item identities never collide");
+        check(
+            !fluid.equals(WirelessTarget.fluid(new FluidStack(FluidRegistry.LAVA, 2500, tag))),
+            "distinct fluids never share an inventory entry");
+
+        InventoryQueryPacket packed = InventoryQueryPacket.pack(
+            -1,
+            Arrays.asList(item, fluid),
+            ignored -> { throw new AssertionError("ordinary item or fluid was omitted"); });
+        packed.requestId = 123456789L;
+        packed.extractableOnly = true;
+        InventoryQueryPacket query = roundTrip(packed, new InventoryQueryPacket());
         check(
             query.requestId == 123456789L && query.dimension == -1 && query.extractableOnly,
             "query context preserved");
-        check(new StackKey(query.items.get(0)).equals(new StackKey(stack)), "query preserves private NBT");
+        check(query.targets.equals(Arrays.asList(item, fluid)), "query preserves both item and fluid NBT");
 
         InventorySnapshotPacket snapshot = new InventorySnapshotPacket();
         snapshot.requestId = 5;
@@ -121,40 +173,44 @@ public final class PacketCodecTest {
         snapshot.terminalSlot = 100013;
         snapshot.validTerminal = true;
         snapshot.accessible = true;
-        snapshot.items.add(stack);
+        snapshot.targets.add(item);
+        snapshot.targets.add(fluid);
         snapshot.counts.add(3_400_000_000_000L);
+        snapshot.counts.add(6_700_000_000L);
+        snapshot.craftable.add(false);
         snapshot.craftable.add(true);
         InventorySnapshotPacket decoded = roundTrip(snapshot, new InventorySnapshotPacket());
         check(
             decoded.gridId == 9 && decoded.revision == 27 && decoded.terminalSlot == 100013,
             "snapshot grid, revision and encoded slot preserved");
-        check(decoded.counts.get(0) == 3_400_000_000_000L && decoded.craftable.get(0), "long stock count preserved");
         check(
-            decoded.validTerminal && decoded.accessible
-                && new StackKey(decoded.items.get(0)).equals(new StackKey(stack)),
+            decoded.counts.equals(snapshot.counts) && decoded.craftable.equals(snapshot.craftable),
+            "long item and fluid counts and craftability remain aligned");
+        check(
+            decoded.validTerminal && decoded.accessible && decoded.targets.equals(Arrays.asList(item, fluid)),
             "snapshot flags and complete NBT preserved");
 
         WirelessActionPacket take = roundTrip(
-            new WirelessActionPacket(WirelessActionPacket.TAKE_STACK, -1, stack),
+            WirelessActionPacket.create(WirelessActionPacket.TAKE_STACK, -1, item),
             new WirelessActionPacket());
         check(
-            take.action == WirelessActionPacket.TAKE_STACK && take.item.stackSize == 1
-                && new StackKey(take.item).equals(new StackKey(stack)),
+            take.action == WirelessActionPacket.TAKE_STACK && take.target.item().stackSize == 1
+                && take.target.equals(item),
             "take action preserves identity, not client quantity");
         WirelessActionPacket craft = roundTrip(
-            new WirelessActionPacket(WirelessActionPacket.CRAFT_ONLY, -1, stack),
+            WirelessActionPacket.create(WirelessActionPacket.CRAFT_ONLY, -1, fluid),
             new WirelessActionPacket());
         check(
-            craft.action == WirelessActionPacket.CRAFT_ONLY && craft.item.stackSize == 1
-                && new StackKey(craft.item).equals(new StackKey(stack)),
-            "explicit crafting preserves full identity independently of item quantity");
+            craft.action == WirelessActionPacket.CRAFT_ONLY && craft.target.fluid().amount == 1
+                && craft.target.equals(fluid),
+            "explicit fluid crafting preserves full identity without client quantity");
         WirelessActionPacket fill = roundTrip(
-            new WirelessActionPacket(WirelessActionPacket.FILL_INVENTORY, -1, stack),
+            WirelessActionPacket.create(WirelessActionPacket.FILL_INVENTORY, -1, item),
             new WirelessActionPacket());
         check(
             fill.action == WirelessActionPacket.FILL_INVENTORY && fill.dimension == -1
-                && fill.item.stackSize == 1
-                && new StackKey(fill.item).equals(new StackKey(stack)),
+                && fill.target.item().stackSize == 1
+                && fill.target.equals(item),
             "fill action preserves meta/NBT and carries no client-controlled amount");
         WorldPickRequestPacket world = new WorldPickRequestPacket();
         world.requestId = 42;
@@ -165,6 +221,7 @@ public final class PacketCodecTest {
         world.y = 255;
         world.z = 300;
         world.side = 5;
+        check(world.prepare(), "vanilla world pick fits transport");
         world = roundTrip(world, new WorldPickRequestPacket());
         check(
             world.requestId == 42 && world.selectedSlot == 7
@@ -254,9 +311,70 @@ public final class PacketCodecTest {
                 .writeByte(255),
             "unsigned unknown action rejected");
         rejects(new WorldPickRequestPacket(), worldHeader(1, 0, 6, 0), "invalid side rejected");
-        rejects(new WorldPickRequestPacket(), worldHeader(1, 0, 0, 9), "invalid selected slot rejected");
+        WorldPickRequestPacket extended = new WorldPickRequestPacket();
+        extended.selectedSlot = 9;
+        extended.item = stack;
+        check(!extended.prepare(), "extended slots never create outgoing world pick requests");
+        ByteBuf legacyHeader = worldHeader(1, 0, 0, 9);
+        try {
+            FullStackCodec.write(legacyHeader, stack);
+            extended.fromBytes(legacyHeader);
+            check(!WorldPickRequestPacket.isVanillaSlot(extended.selectedSlot), "legacy extended slot is ignored");
+        } finally {
+            legacyHeader.release();
+        }
         rejects(new WorldPickRequestPacket(), worldHeader(1, -1, 0, 0), "invalid height rejected");
         rejects(new WorldPickRequestPacket(), worldHeader(0, 0, 0, 0), "invalid request id rejected");
+        queryBudget(stack, fluid);
         System.out.println("PASS: " + checks + " Forge/Netty packet regression checks");
     }
+
+    private static void queryBudget(ItemStack stack, WirelessTarget fluid) {
+        Random random = new Random(1729);
+        List<WirelessTarget> candidates = new ArrayList<>();
+        WirelessTarget oversized = WirelessTarget.item(withBytes(stack, random, 18_000));
+        candidates.add(oversized);
+        candidates.add(WirelessTarget.item(new ItemStack(new Item())));
+        for (int i = 0; i < 5; i++) candidates.add(WirelessTarget.item(withBytes(stack, random, 6_000)));
+        candidates.add(fluid);
+        List<WirelessTarget> skipped = new ArrayList<>();
+        InventoryQueryPacket batch = InventoryQueryPacket.pack(0, candidates, skipped::add);
+        check(skipped.equals(candidates.subList(0, 2)), "omit only targets that cannot fit or be encoded");
+        check(batch.targets.equals(candidates.subList(2, 4)), "wire size, not just entry count, limits a batch");
+        check(roundTrip(batch, new InventoryQueryPacket()).targets.equals(batch.targets), "bounded batch round trip");
+        InventoryQueryPacket next = InventoryQueryPacket.pack(0, candidates.subList(4, 6), skipped::add);
+        check(next.targets.equals(candidates.subList(4, 6)), "deferred targets can be queried in a later batch");
+        ByteBuf payload = Unpooled.buffer()
+            .writeByte(0);
+        try {
+            batch.toBytes(payload);
+            check(payload.readableBytes() <= 16 * 1024, "budget includes the Forge discriminator");
+            ByteBuf copiedPayload = payload.copy();
+            try {
+                check(
+                    new FMLProxyPacket(copiedPayload, "AECFTest").toC17Packet() != null,
+                    "actual Forge and vanilla transport accept a budgeted batch");
+            } finally {
+                copiedPayload.release();
+            }
+        } finally {
+            payload.release();
+        }
+        check(
+            WirelessActionPacket.create(WirelessActionPacket.TAKE_ONE, 0, oversized) == null,
+            "a standalone oversized NEI target is not sent");
+        WorldPickRequestPacket pick = new WorldPickRequestPacket();
+        pick.item = oversized.item();
+        check(!pick.prepare(), "a standalone oversized world pick is not sent");
+    }
+
+    private static ItemStack withBytes(ItemStack stack, Random random, int size) {
+        ItemStack copy = stack.copy();
+        byte[] bytes = new byte[size];
+        random.nextBytes(bytes);
+        copy.getTagCompound()
+            .setByteArray("data", bytes);
+        return copy;
+    }
+
 }

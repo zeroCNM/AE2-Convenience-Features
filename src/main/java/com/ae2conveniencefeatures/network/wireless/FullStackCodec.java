@@ -19,9 +19,14 @@ public final class FullStackCodec {
     }
 
     public static ItemStack read(ByteBuf buffer) {
-        NBTTagCompound tag = ByteBufUtils.readTag(buffer);
+        ItemStack item = readItem(ByteBufUtils.readTag(buffer));
+        if (item == null) throw new IllegalArgumentException("Invalid wireless item");
+        return item;
+    }
+
+    static ItemStack readItem(NBTTagCompound tag) {
         ItemStack item = tag == null ? null : ItemStack.loadItemStackFromNBT(tag);
-        if (item == null || item.getItem() == null) throw new IllegalArgumentException("Invalid wireless item");
+        if (item == null || item.getItem() == null) return null;
         item.stackSize = 1;
         return item;
     }

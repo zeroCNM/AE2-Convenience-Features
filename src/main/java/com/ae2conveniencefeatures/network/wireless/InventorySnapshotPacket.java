@@ -3,9 +3,8 @@ package com.ae2conveniencefeatures.network.wireless;
 import java.util.ArrayList;
 import java.util.List;
 
-import net.minecraft.item.ItemStack;
-
 import com.ae2conveniencefeatures.AE2ConvenienceFeatures;
+import com.ae2conveniencefeatures.wireless.WirelessTarget;
 
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
 import cpw.mods.fml.common.network.simpleimpl.IMessageHandler;
@@ -21,7 +20,7 @@ public final class InventorySnapshotPacket implements IMessage {
     public int terminalSlot;
     public boolean validTerminal;
     public boolean accessible;
-    public List<ItemStack> items = new ArrayList<ItemStack>();
+    public final List<WirelessTarget> targets = new ArrayList<>();
     public List<Long> counts = new ArrayList<Long>();
     public List<Boolean> craftable = new ArrayList<Boolean>();
 
@@ -37,11 +36,13 @@ public final class InventorySnapshotPacket implements IMessage {
         int size = buf.readUnsignedShort();
         if (size > InventoryQueryPacket.MAX_ITEMS) throw new IllegalArgumentException("Oversized wireless snapshot");
         for (int i = 0; i < size; i++) {
-            ItemStack item = FullStackCodec.read(buf);
-            if (item == null) throw new IllegalArgumentException("Invalid snapshot item");
-            items.add(item);
-            counts.add(Math.max(0, buf.readLong()));
-            craftable.add(buf.readBoolean());
+            WirelessTarget target = WirelessTargetCodec.read(buf);
+            long count = buf.readLong();
+            boolean canCraft = buf.readBoolean();
+            if (target == null) continue;
+            targets.add(target);
+            counts.add(Math.max(0, count));
+            craftable.add(canCraft);
         }
     }
 
@@ -54,9 +55,9 @@ public final class InventorySnapshotPacket implements IMessage {
         buf.writeInt(terminalSlot);
         buf.writeBoolean(validTerminal);
         buf.writeBoolean(accessible);
-        buf.writeShort(items.size());
-        for (int i = 0; i < items.size(); i++) {
-            FullStackCodec.write(buf, items.get(i));
+        buf.writeShort(targets.size());
+        for (int i = 0; i < targets.size(); i++) {
+            WirelessTargetCodec.write(buf, targets.get(i));
             buf.writeLong(counts.get(i));
             buf.writeBoolean(craftable.get(i));
         }

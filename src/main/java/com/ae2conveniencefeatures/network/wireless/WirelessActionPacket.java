@@ -1,10 +1,10 @@
 package com.ae2conveniencefeatures.network.wireless;
 
 import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.item.ItemStack;
 
 import com.ae2conveniencefeatures.wireless.ServerTasks;
 import com.ae2conveniencefeatures.wireless.WirelessService;
+import com.ae2conveniencefeatures.wireless.WirelessTarget;
 
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
 import cpw.mods.fml.common.network.simpleimpl.IMessageHandler;
@@ -19,15 +19,20 @@ public final class WirelessActionPacket implements IMessage {
     public static final int FILL_INVENTORY = 3;
     public int action;
     public int dimension;
-    public ItemStack item;
+    public WirelessTarget target;
+    private byte[] encoded;
 
     public WirelessActionPacket() {}
 
-    public WirelessActionPacket(int action, int dimension, ItemStack item) {
-        this.action = action;
-        this.dimension = dimension;
-        this.item = item == null ? null : item.copy();
-        if (this.item != null) this.item.stackSize = 1;
+    public static WirelessActionPacket create(int action, int dimension, WirelessTarget target) {
+        byte[] encoded = WirelessTargetCodec.encode(target, WirelessTargetCodec.CLIENT_PACKET_BUDGET - 6);
+        if (encoded == null) return null;
+        WirelessActionPacket packet = new WirelessActionPacket();
+        packet.action = action;
+        packet.dimension = dimension;
+        packet.target = target;
+        packet.encoded = encoded;
+        return packet;
     }
 
     @Override
@@ -35,15 +40,14 @@ public final class WirelessActionPacket implements IMessage {
         action = buf.readUnsignedByte();
         if (action > FILL_INVENTORY) throw new IllegalArgumentException("Invalid wireless action");
         dimension = buf.readInt();
-        item = FullStackCodec.read(buf);
-        item.stackSize = 1;
+        target = WirelessTargetCodec.read(buf);
     }
 
     @Override
     public void toBytes(ByteBuf buf) {
         buf.writeByte(action);
         buf.writeInt(dimension);
-        FullStackCodec.write(buf, item);
+        buf.writeBytes(encoded);
     }
 
     public static final class Handler implements IMessageHandler<WirelessActionPacket, IMessage> {

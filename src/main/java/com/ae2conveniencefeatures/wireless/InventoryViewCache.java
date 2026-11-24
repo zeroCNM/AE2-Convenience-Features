@@ -6,6 +6,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /** Pure client cache state, separated from Minecraft so stale-response/expiry behavior can be tested. */
 public final class InventoryViewCache<K> {
@@ -81,9 +82,13 @@ public final class InventoryViewCache<K> {
     }
 
     public List<K> refreshCandidates(long now, int limit) {
+        return refreshCandidates(now, limit, key -> true);
+    }
+
+    public List<K> refreshCandidates(long now, int limit, Predicate<K> eligible) {
         List<K> candidates = new ArrayList<K>();
         for (K key : visible) {
-            if (needsRefresh(key, now)) candidates.add(key);
+            if (eligible.test(key) && needsRefresh(key, now)) candidates.add(key);
         }
         // Missing and oldest visible items go first. Repeated network revisions must not let
         // the first batch starve the history/bookmark panels or a large NEI item page.
@@ -94,7 +99,7 @@ public final class InventoryViewCache<K> {
             if (b == null) return 1;
             return Long.compare(a.receivedAt, b.receivedAt);
         });
-        return new ArrayList<K>(candidates.subList(0, Math.min(Math.max(0, limit), candidates.size())));
+        return limit >= candidates.size() ? candidates : new ArrayList<K>(candidates.subList(0, Math.max(0, limit)));
     }
 
     public boolean pending(long now) {

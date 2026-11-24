@@ -1,11 +1,12 @@
 package com.ae2conveniencefeatures.client.wireless;
 
 import java.awt.Point;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.inventory.GuiContainer;
@@ -32,6 +33,9 @@ import com.ae2conveniencefeatures.wireless.InventoryViewCache;
 import com.ae2conveniencefeatures.wireless.StackKey;
 import com.ae2conveniencefeatures.wireless.StackKeyCache;
 import com.ae2conveniencefeatures.wireless.TerminalAccess;
+import com.ae2conveniencefeatures.wireless.WirelessTarget;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 
 import codechicken.lib.gui.GuiDraw;
 import codechicken.lib.vec.Rectangle4i;
@@ -53,8 +57,12 @@ import cpw.mods.fml.common.gameevent.TickEvent;
 
 public final class WirelessClient {
 
-    private static final InventoryViewCache<StackKey> CACHE = new InventoryViewCache<StackKey>();
+    private static final InventoryViewCache<WirelessTarget> CACHE = new InventoryViewCache<>();
     private static final StackKeyCache KEYS = new StackKeyCache();
+    private static final Cache<StackKey, WirelessTarget> TARGETS = CacheBuilder.newBuilder()
+        .maximumSize(2048)
+        .build();
+    private static final Set<WirelessTarget> UNENCODABLE = new HashSet<>();
     private static boolean hasSnapshot;
     private static boolean validTerminal;
     private static boolean accessible;
@@ -89,7 +97,9 @@ public final class WirelessClient {
     public void opened(GuiOpenEvent event) {
         pendingPick = null;
         KEYS.clear();
-        CACHE.context(null, Collections.<StackKey>emptySet());
+        TARGETS.invalidateAll();
+        UNENCODABLE.clear();
+        CACHE.context(null, Collections.emptySet());
         CACHE.invalidate(0);
         hasSnapshot = false;
     }
@@ -103,22 +113,24 @@ public final class WirelessClient {
             && neiVisible();
         if (minecraft.theWorld == null || !neiActive && pendingPick == null) {
             pendingPick = null;
-            CACHE.context(null, Collections.<StackKey>emptySet());
+            CACHE.context(null, Collections.emptySet());
+            UNENCODABLE.clear();
             hasSnapshot = false;
             return;
         }
         TerminalAccess terminal = TerminalAccess.findClientItem(minecraft.thePlayer);
         if (minecraft.theWorld == null || terminal == null) {
             pendingPick = null;
-            CACHE.context(null, Collections.<StackKey>emptySet());
+            CACHE.context(null, Collections.emptySet());
+            UNENCODABLE.clear();
             hasSnapshot = false;
             return;
         }
-        LinkedHashMap<StackKey, ItemStack> wanted = new LinkedHashMap<StackKey, ItemStack>();
+        Set<WirelessTarget> wanted = new LinkedHashSet<>();
         if (neiActive && minecraft.currentScreen instanceof GuiContainer gui) {
             Point mouse = GuiDraw.getMousePosition();
             ItemStack hovered = neiCraftItem(gui, mouse.x, mouse.y);
-            if (hovered != null) wanted.put(KEYS.key(hovered), hovered);
+            collectTarget(hovered, wanted);
             collect(ItemPanels.itemPanel.getGrid(), wanted);
             if (NEIClientConfig.showHistoryPanelWidget()) collect(historyGrid(), wanted);
             collect(ItemPanels.bookmarkPanel.getGrid(), wanted);
@@ -128,44 +140,51 @@ public final class WirelessClient {
             + System.identityHashCode(minecraft.currentScreen)
             + ":"
             + terminal.clientIdentity();
-        if (CACHE.context(identity, wanted.keySet())) hasSnapshot = false;
+        UNENCODABLE.retainAll(wanted);
+        if (CACHE.context(identity, wanted)) hasSnapshot = false;
         long now = System.nanoTime();
         if (pendingPick != null && !pendingPick.isCurrent(minecraft, terminal, now)) pendingPick = null;
         if (wanted.isEmpty() || CACHE.pending(now)) return;
-        ArrayList<ItemStack> batch = new ArrayList<ItemStack>();
-        for (StackKey key : CACHE.refreshCandidates(now, InventoryQueryPacket.MAX_ITEMS)) {
-            batch.add(wanted.get(key));
-        }
-        if (!batch.isEmpty()) {
-            ModNetwork.CHANNEL.sendToServer(
-                new InventoryQueryPacket(
-                    CACHE.begin(now),
-                    minecraft.thePlayer.dimension,
-                    batch,
-                    minecraft.currentScreen == null));
+        InventoryQueryPacket batch = InventoryQueryPacket.pack(
+            minecraft.thePlayer.dimension,
+            CACHE.refreshCandidates(now, Integer.MAX_VALUE, key -> !UNENCODABLE.contains(key)),
+            UNENCODABLE::add);
+        if (!batch.targets.isEmpty()) {
+            batch.requestId = CACHE.begin(now);
+            ModNetwork.CHANNEL.sendToServer(batch);
         }
     }
 
-    private static void collect(ItemsGrid<?, ?> grid, Map<StackKey, ItemStack> wanted) {
+    private static WirelessTarget target(ItemStack item) {
+        if (item == null || item.getItem() == null) return null;
+        StackKey key = KEYS.key(item);
+        WirelessTarget target = TARGETS.getIfPresent(key);
+        if (target != null) return target;
+        target = NeiTarget.of(item);
+        if (target != null) TARGETS.put(key, target);
+        return target;
+    }
+
+    private static void collectTarget(ItemStack item, Set<WirelessTarget> wanted) {
+        WirelessTarget target = target(item);
+        if (target != null) wanted.add(target);
+    }
+
+    private static void collect(ItemsGrid<?, ?> grid, Set<WirelessTarget> wanted) {
         if (grid.getPerPage() == 0) return;
         for (ItemsGridSlot slot : grid.getMask()) {
-            ItemStack item = slot.getItemStack();
-            if (item != null && item.getItem() != null) wanted.put(KEYS.key(item), item);
+            collectTarget(slot.getItemStack(), wanted);
         }
     }
 
-    private static void collectRecipes(GuiRecipe<?> gui, Map<StackKey, ItemStack> wanted) {
+    private static void collectRecipes(GuiRecipe<?> gui, Set<WirelessTarget> wanted) {
         ScrollContainer body = ((RecipeContainerAccessor) gui).ae2cf$getRecipeContainer();
         if (body == null) return;
         // Query all current recipe-body stacks on tick, without requiring a hovered item.
         // Never traverse recipeCatalyst: its machine list must not gain stock overlays.
         for (Widget widget : body.getWidgets()) {
             if (widget instanceof RecipeInventorySource source) {
-                source.ae2cf$collectItems(stack -> {
-                    if (stack != null && stack.item != null && stack.item.getItem() != null) {
-                        wanted.put(KEYS.key(stack.item), stack.item);
-                    }
-                });
+                source.ae2cf$collectItems(stack -> { if (stack != null) collectTarget(stack.item, wanted); });
             }
         }
     }
@@ -173,11 +192,11 @@ public final class WirelessClient {
     public static void receive(InventorySnapshotPacket packet) {
         Minecraft minecraft = Minecraft.getMinecraft();
         if (minecraft.thePlayer == null || packet.dimension != minecraft.thePlayer.dimension) return;
-        Map<StackKey, InventoryViewCache.Stock> values = new HashMap<StackKey, InventoryViewCache.Stock>();
+        Map<WirelessTarget, InventoryViewCache.Stock> values = new HashMap<>();
         long now = System.nanoTime();
-        for (int i = 0; i < packet.items.size(); i++) {
+        for (int i = 0; i < packet.targets.size(); i++) {
             values.put(
-                new StackKey(packet.items.get(i)),
+                packet.targets.get(i),
                 new InventoryViewCache.Stock(packet.counts.get(i), packet.craftable.get(i), now));
         }
         if (CACHE.accept(packet.requestId, packet.gridId, packet.revision, values)) {
@@ -239,15 +258,18 @@ public final class WirelessClient {
     }
 
     private static void drawStock(ItemStack item, Rectangle4i rect, boolean leftAligned, long now) {
-        if (item == null) return;
-        InventoryViewCache.Stock stock = CACHE.peekForDisplay(KEYS.key(item), now);
+        if (item == null || item.getItem() == null) return;
+        WirelessTarget target = TARGETS.getIfPresent(KEYS.key(item));
+        if (target == null) return; // Rendering only reads targets collected on tick.
+        InventoryViewCache.Stock stock = CACHE.peekForDisplay(target, now);
         if (stock == null) return;
         Minecraft minecraft = Minecraft.getMinecraft();
+        String count = stock.display;
         int textX = leftAligned ? (rect.x + 1) * 2
-            : (rect.x + rect.w - 1) * 2 - minecraft.fontRenderer.getStringWidth(stock.display);
+            : (rect.x + rect.w - 1) * 2 - minecraft.fontRenderer.getStringWidth(count);
         int textY = (rect.y + rect.h) * 2 - minecraft.fontRenderer.FONT_HEIGHT;
         if (stock.count > 0) {
-            minecraft.fontRenderer.drawStringWithShadow(stock.display, textX, textY, leftAligned ? 0x7EFFB3 : 0xFFFFFF);
+            minecraft.fontRenderer.drawStringWithShadow(count, textX, textY, leftAligned ? 0x7EFFB3 : 0xFFFFFF);
         }
         if (stock.craftable) {
             minecraft.fontRenderer.drawStringWithShadow("+", (rect.x + 1) * 2, (rect.y + 1) * 2, 0xFFFFFF);
@@ -260,13 +282,11 @@ public final class WirelessClient {
             return false;
         Minecraft minecraft = Minecraft.getMinecraft();
         if (TerminalAccess.findClientItem(minecraft.thePlayer) == null || hasSnapshot && !validTerminal) return false;
-        ItemStack item = neiItem(gui, mouseX, mouseY);
-        if (item == null) return false; // Ordinary player inventory slots retain vanilla Shift-click behavior.
-        ModNetwork.CHANNEL.sendToServer(
-            new WirelessActionPacket(
-                button == 1 ? WirelessActionPacket.TAKE_ONE : WirelessActionPacket.TAKE_STACK,
-                minecraft.thePlayer.dimension,
-                item));
+        WirelessTarget target = target(neiItem(gui, mouseX, mouseY));
+        if (target == null || !sendAction(
+            button == 1 ? WirelessActionPacket.TAKE_ONE : WirelessActionPacket.TAKE_STACK,
+            minecraft.thePlayer.dimension,
+            target)) return false;
         CACHE.refresh();
         return true;
     }
@@ -279,11 +299,10 @@ public final class WirelessClient {
             || minecraft.currentScreen != gui
             || TerminalAccess.findClientItem(minecraft.thePlayer) == null
             || hasSnapshot && (!validTerminal || !accessible)) return false;
-        ItemStack item = neiItem(gui, mouseX, mouseY);
-        if (item == null) return false;
+        WirelessTarget target = target(neiItem(gui, mouseX, mouseY));
         // Quantity and the zero-stock crafting fallback are decided only by the server.
-        ModNetwork.CHANNEL.sendToServer(
-            new WirelessActionPacket(WirelessActionPacket.FILL_INVENTORY, minecraft.thePlayer.dimension, item));
+        if (target == null || !sendAction(WirelessActionPacket.FILL_INVENTORY, minecraft.thePlayer.dimension, target))
+            return false;
         CACHE.refresh();
         return true;
     }
@@ -291,6 +310,13 @@ public final class WirelessClient {
     /** Own eligible presses before NEI recipe/cheat handlers, including their release and drag. */
     public static boolean priorityClick(GuiContainer gui, int mouseX, int mouseY, int button) {
         return button == 2 ? craftClick(gui, mouseX, mouseY, button) : fillClick(gui, mouseX, mouseY, button);
+    }
+
+    private static boolean sendAction(int action, int dimension, WirelessTarget target) {
+        WirelessActionPacket packet = WirelessActionPacket.create(action, dimension, target);
+        if (packet == null) return false;
+        ModNetwork.CHANNEL.sendToServer(packet);
+        return true;
     }
 
     private static ItemStack neiItem(GuiContainer gui, int mouseX, int mouseY) {
@@ -323,15 +349,13 @@ public final class WirelessClient {
             || minecraft.currentScreen != gui
             || TerminalAccess.findClientItem(minecraft.thePlayer) == null
             || hasSnapshot && (!validTerminal || !accessible)) return false;
-        ItemStack item = neiCraftItem(gui, mouseX, mouseY);
-        if (item == null) return false; // Does not claim ordinary inventory or AE terminal slots.
-        InventoryViewCache.Stock stock = CACHE.peek(KEYS.key(item), System.nanoTime());
+        WirelessTarget target = target(neiCraftItem(gui, mouseX, mouseY));
+        if (target == null) return false; // Does not claim ordinary inventory or AE terminal slots.
+        InventoryViewCache.Stock stock = CACHE.peek(target, System.nanoTime());
         if (stock != null && !stock.craftable) return false;
         // A cold/stale cache is advisory, never authority: claim this one press and let the
         // server validate it once. Do not replay it to other crafting handlers after a timeout.
-        ModNetwork.CHANNEL.sendToServer(
-            new WirelessActionPacket(WirelessActionPacket.CRAFT_ONLY, minecraft.thePlayer.dimension, item));
-        return true;
+        return sendAction(WirelessActionPacket.CRAFT_ONLY, minecraft.thePlayer.dimension, target);
     }
 
     @SubscribeEvent(priority = EventPriority.HIGHEST, receiveCanceled = true)
@@ -341,20 +365,36 @@ public final class WirelessClient {
         Minecraft minecraft = Minecraft.getMinecraft();
         if (minecraft.currentScreen != null || minecraft.thePlayer == null
             || minecraft.theWorld == null
-            || minecraft.thePlayer.capabilities.isCreativeMode) return;
+            || minecraft.thePlayer.capabilities.isCreativeMode
+            || yieldsWorldPick(minecraft)) return;
         TerminalAccess terminal = TerminalAccess.findClientItem(minecraft.thePlayer);
         if (terminal == null) return; // No terminal: do not touch vanilla pick-block or other mods.
         ItemStack item = pickedItem(minecraft);
-        if (item == null) return;
+        if (item == null || item.getItem() == null) return;
         // Own this physical press before it becomes vanilla's pick key or another MouseInputEvent.
         // This prevents AE2's PacketPickBlock and middleClickMouse mixins from making a second
         // extraction. Only this terminal-backed world-block input is consumed; no global key or
         // other mod setting is changed. Already-canceled input above remains owned by its handler.
-        event.setCanceled(true);
         long now = System.nanoTime();
-        if (pendingPick != null && pendingPick.isCurrent(minecraft, terminal, now)) return;
-        pendingPick = new PendingPick(minecraft, terminal, item, ++pickSequence, now);
+        if (pendingPick != null && pendingPick.isCurrent(minecraft, terminal, now)) {
+            event.setCanceled(true);
+            return;
+        }
+        PendingPick next = new PendingPick(minecraft, terminal, item, ++pickSequence, now);
+        if (!next.request.prepare()) return;
+        event.setCanceled(true);
+        pendingPick = next;
         ModNetwork.CHANNEL.sendToServer(pendingPick.request);
+    }
+
+    private static boolean yieldsWorldPick(Minecraft minecraft) {
+        if (!WorldPickRequestPacket.isVanillaSlot(minecraft.thePlayer.inventory.currentItem)) return true;
+        ItemStack held = minecraft.thePlayer.getHeldItem();
+        return held != null && held.getItem() != null
+            && "gregtech.common.items.ItemGTToolbox".equals(
+                held.getItem()
+                    .getClass()
+                    .getName());
     }
 
     public static void receivePickResult(WorldPickResultPacket result) {
@@ -402,6 +442,7 @@ public final class WirelessClient {
                 || minecraft.currentScreen != null
                 || currentTerminal == null
                 || now >= expires
+                || yieldsWorldPick(minecraft)
                 || minecraft.thePlayer.dimension != request.dimension
                 || minecraft.thePlayer.inventory.currentItem != request.selectedSlot
                 || !terminal.equals(currentTerminal.clientIdentity())) return false;

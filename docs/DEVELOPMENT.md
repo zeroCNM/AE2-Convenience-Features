@@ -1,4 +1,4 @@
-# AE2 Convenience Features 0.11
+# AE2 Convenience Features 0.12
 
 独立的 Minecraft 1.7.10 / GTNH 2.9.0 模组，客户端和服务端均安装。
 
@@ -19,7 +19,7 @@
 ## 安装
 
 1. 客户端与服务端从 mods 移除旧 AE2-Auto-Pattern-Upload，备份原 jar。
-2. 双端加入 `AE2 Convenience Features 0.11.jar`，删除旧版功能包。不要安装开发包 `dev.jar` 或源码包 `sources.jar`。
+2. 双端加入 `AE2 Convenience Features 0.12.jar`，删除旧版功能包。不要安装开发包 `dev.jar` 或源码包 `sources.jar`。
 3. 原 GTNH 2.9.0 自带 AE2、GTNH NEI、CodeChickenLib、UniMixins 已满足必需运行条件。Baubles 为可选，AE2FC 搜索兼容没有硬类型依赖。
 4. 新配置生成在 `config/ae2conveniencefeatures.cfg`。`neiActions`、`neiMiddleCraft`、`inventoryOverlay`、`worldPickBlock`、`completedCraftRows` 可单独关闭；`searchKeyCode=33` 表示 F，设 0 关闭。
 
@@ -42,12 +42,12 @@ JDK 17 运行 Gradle，Java 8 字节码输出：
 
 ```sh
 bash build.sh spotlessApply build
-python3 scripts/audit-artifact.py "build/libs/AE2 Convenience Features 0.11.jar"
+python3 scripts/audit-artifact.py "build/libs/AE2 Convenience Features 0.12.jar"
 ```
 
 `build` 自动运行实际 Minecraft 物品/NBT、Forge/Netty 编解码、缓存及手持物品守恒回归。具体运行结果、接口核实和 14 项自检随交付报告提供。构建通过不能代替 GTNH 客户端交互实测。
 
-每次发布功能更新都递增一次版本号，统一维护根目录 `VERSION`；构建和产物审计均读取该文件。同一次更新重复构建不增加版本。本次为 0.11，下一次为 0.12，历史交付保留。
+每次发布功能更新都递增一次版本号，统一维护根目录 `VERSION`；构建和产物审计均读取该文件。同一次更新重复构建不增加版本，历史交付保留。
 
 ## 完成物品临时栏
 

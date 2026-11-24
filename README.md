@@ -1,6 +1,6 @@
 # AE2 Convenience Features
 
-面向 **GTNH 2.9.0 / Minecraft 1.7.10** 的 AE2 与 NEI 便捷功能模组，当前版本 **0.11**。新增模组代码采用 **[0BSD](LICENSE)** 协议。
+面向 **GTNH 2.9.0 / Minecraft 1.7.10** 的 AE2 与 NEI 便捷功能模组，当前版本 **0.12**。新增模组代码采用 **[0BSD](LICENSE)** 协议。
 
 > **本项目完全由 AI 编写。** 模组功能代码、版本适配与项目文档均由 AI 完成，zeroCNM 提供需求与测试反馈。构建脚手架沿用 GTNH 模板，并保留原许可证。
 
@@ -18,11 +18,13 @@
 
 NEI 库存、快捷取物与中键功能需要携带有效的已绑定无线终端；F 搜索和制作完成栏不要求随身携带无线终端。NEI 物品栏和历史栏使用右下白色库存数字，书签及配方页面使用左下绿色数字，零库存不显示。
 
+流体图标按 mB 显示库存；有流体样板时可用中键、Shift 点击或空格点击打开 AE 原生下单界面。不会将未装入容器的流体直接放进背包。手持现场工程师工具箱或选中原版范围之外的快捷栏槽位时，AECF 不接管世界中键。
+
 取物与下单由服务端校验绑定、电量、范围和权限，并精确区分物品 meta/NBT。兼容处理以 GTNH 已核实的输入路径为准，其他模组组合仍需实测。
 
 ## 安装
 
-客户端与服务端均安装 `AE2 Convenience Features 0.11.jar`，并移除旧版本。本模组只需 GTNH 2.9.0 自带的前置，无需额外安装第三方模组。各功能可在 `config/ae2conveniencefeatures.cfg` 中单独关闭。
+客户端与服务端均安装 `AE2 Convenience Features 0.12.jar`，并移除旧版本；请勿混用旧版和 0.12。本模组只需 GTNH 2.9.0 自带的前置，无需额外安装第三方模组。各功能可在 `config/ae2conveniencefeatures.cfg` 中单独关闭。
 
 本模组独立运行，不包含样板上传或多方块配方池识别功能；迁移时请移除旧的修改版样板上传模组，以免重复注册功能。
 
@@ -36,7 +38,7 @@ cd AE2-Convenience-Features
 bash build.sh spotlessApply build
 ```
 
-正式模组位于 `build/libs/AE2 Convenience Features 0.11.jar`。不要将 `dev.jar` 或 `sources.jar` 放入游戏。
+正式模组位于 `build/libs/AE2 Convenience Features 0.12.jar`。不要将 `dev.jar` 或 `sources.jar` 放入游戏。
 
 回归与构建检查见[验证记录](docs/VALIDATION.md)；图形客户端交互仍需实测。[开发与兼容说明](docs/DEVELOPMENT.md)
 
